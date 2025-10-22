@@ -1,7 +1,7 @@
 // src/App.js
 import React, { useRef, useCallback } from "react";
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from "react-router-dom";
-import FileList from "./components/FileList";
+import HomePage from "./Pages/HomePage";
 import UploadPage from "./Pages/UploadPage";
 
 export default function App() {
@@ -28,7 +28,8 @@ export default function App() {
 
         <main className="content">
           <Routes>
-            <Route path="/" element={<FileList ref={fileListRef} />} />
+            {/* 2. SỬ DỤNG TÊN MỚI "HomePage" Ở ĐÂY */}
+            <Route path="/" element={<HomePage ref={fileListRef} />} />
             <Route path="/upload" element={<UploadPage onUploaded={handleUploaded} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

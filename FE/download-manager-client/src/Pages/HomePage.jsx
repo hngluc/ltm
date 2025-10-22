@@ -1,34 +1,42 @@
 // src/components/FileList.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, forwardRef, useImperativeHandle, useCallback } from "react";
 import { API_BASE } from "../config";
 import { useDownloader } from "../hooks/useDownloader";
-import ProgressBar from "./ProgressBar";
+import ProgressBar from "../components/ProgressBar";
 import "../App.css";
 
-export default function FileList() {
+const HomePage = forwardRef((props, ref) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const { progress, downloading, startDownload, pause, cancel } = useDownloader();
 
-  // Tách logic fetch ra hàm riêng
-  const fetchFiles = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE || ""}/files`);
-      const data = await res.json();
-      setFiles(data || []);
-    } catch (e) {
-      console.error("Fetch files failed:", e);
-      setFiles([]);
-    } finally {
-      setLoading(false); 
-    }
-  }, []); 
+// Cung cấp hàm 'refresh' ra bên ngoài thông qua 'ref'
+useImperativeHandle(ref, () => ({
+  refresh: () => {
+    console.log("Refreshing file list from parent component...");
+    fetchFiles(); // Gọi lại hàm fetch
+  }
+}));
+
+ // Tách hàm fetch ra riêng để có thể gọi lại từ bên ngoài
+const fetchFiles = useCallback(async () => {
+  try {
+    const res = await fetch(`${API_BASE || ""}/files`);
+    const data = await res.json();
+    setFiles(data || []);
+  } catch (e) {
+    console.error("Fetch files failed:", e);
+    setFiles([]);
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   // Gọi hàm fetchFiles ở lần đầu tiên
-  useEffect(() => {
-    setLoading(true); 
-    fetchFiles();
-  }, [fetchFiles]);
+ useEffect(() => {
+  setLoading(true); // Báo loading cho lần tải đầu
+  fetchFiles();
+}, [fetchFiles]);
 
   // Lắng nghe sự kiện SSE để tự động cập nhật list
   useEffect(() => {
@@ -173,4 +181,6 @@ export default function FileList() {
       </table>
     </div>
   );
-}
+});
+
+export default HomePage;
