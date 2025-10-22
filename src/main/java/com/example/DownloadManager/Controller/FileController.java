@@ -154,6 +154,76 @@ public class FileController {
         }
     }
 
+    // ===== DELETE =====
+    @DeleteMapping("/{name}")
+    public ResponseEntity<Map<String, Object>> deleteFile(@PathVariable String name) {
+        try {
+            // Chặn path traversal
+            if (name.contains("..") || name.contains("/") || name.contains("\\")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("message", "Invalid file name."));
+            }
+            Path file = ROOT.resolve(name).normalize();
+
+            if (!Files.exists(file)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "File not found."));
+            }
+
+            Files.delete(file);
+            return ResponseEntity.ok(Map.of("message", "File deleted successfully.", "fileName", name));
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Error deleting file.", "error", e.getMessage()));
+        }
+    }
+
+    // ===== UPDATE (Rename) =====
+    @PatchMapping("/{name}")
+    public ResponseEntity<Map<String, Object>> renameFile(
+            @PathVariable String name,
+            @RequestBody Map<String, String> payload
+    ) {
+        String newName = payload.get("newName");
+
+        try {
+            // Chặn path traversal
+            if (name.contains("..") || name.contains("/") || name.contains("\\") ||
+                    newName == null || newName.isBlank() ||
+                    newName.contains("..") || newName.contains("/") || newName.contains("\\")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("message", "Invalid old or new name."));
+            }
+
+            Path oldFile = ROOT.resolve(name).normalize();
+            Path newFile = ROOT.resolve(newName).normalize();
+
+            if (!Files.exists(oldFile)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "File not found."));
+            }
+
+            if (Files.exists(newFile)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("message", "New file name already exists."));
+            }
+
+            Files.move(oldFile, newFile);
+            return ResponseEntity.ok(Map.of(
+                    "message", "File renamed successfully.",
+                    "oldName", name,
+                    "newName", newName
+            ));
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Error renaming file.", "error", e.getMessage()));
+        }
+    }
+
     // ===== LimitedInputStream: giới hạn N bytes (cho Partial) =====
     static class LimitedInputStream extends FilterInputStream {
         private long remaining;

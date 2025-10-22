@@ -33,6 +33,66 @@ export default function FileList() {
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${units[i]}`;
   };
 
+  const handleDelete = async (fileName) => {
+    // Xác nhận trước khi xóa
+    if (!window.confirm(`Bạn có chắc muốn xóa file: ${fileName}?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE || ""}/files/${fileName}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || "Lỗi khi xóa file.");
+      }
+      
+      console.log(`File ${fileName} đã được xóa.`);
+      // Cập nhật lại danh sách file trên UI
+      setFiles(files.filter((f) => f.name !== fileName));
+
+    } catch (e) {
+      console.error("Delete file failed:", e);
+      alert(`Xóa file thất bại: ${e.message}`);
+    }
+  };
+
+  const handleRename = async (oldName) => {
+    const newName = window.prompt("Nhập tên mới cho file:", oldName);
+
+    // Nếu người dùng hủy hoặc không nhập gì
+    if (!newName || newName === oldName) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE || ""}/files/${oldName}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ newName: newName }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || "Lỗi khi đổi tên file.");
+      }
+      
+      console.log(`Đã đổi tên ${oldName} -> ${newName}`);
+      // Cập nhật lại danh sách file trên UI
+      setFiles(files.map(f => 
+        f.name === oldName ? { ...f, name: newName } : f
+      ));
+
+    } catch (e) {
+      console.error("Rename file failed:", e);
+      alert(`Đổi tên file thất bại: ${e.message}`);
+    }
+  };
+
   if (loading) return <p className="file-list-status">Đang tải danh sách file...</p>;
   if (files.length === 0) return <p className="file-list-status">Không có file nào trong thư mục shared.</p>;
 
@@ -70,6 +130,12 @@ export default function FileList() {
                       </button>
                       <button className="action-button cancel-button" onClick={() => cancel(f.name)}>
                         🗑️ Clear
+                      </button>
+                      <button className="action-button rename-button" onClick={() => handleRename(f.name)}>
+                        ✏️ Rename
+                      </button>
+                      <button className="action-button delete-button" onClick={() => handleDelete(f.name)}>
+                        🗑️ Delete
                       </button>
                     </>
                   ) : (

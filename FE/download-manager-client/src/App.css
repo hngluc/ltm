@@ -343,6 +343,22 @@ html, body, #root {
   background: rgba(255,255,255,.10);
 }
 
+.rename-button {
+  background-color: #ffc107; /* Vàng */
+  color: #212529;
+}
+.rename-button:hover {
+  background-color: #e0a800;
+}
+
+.delete-button {
+  background-color: #dc3545; /* Đỏ */
+  color: white;
+}
+.delete-button:hover {
+  background-color: #c82333;
+}
+
 /* Responsive tweak for header buttons */
 @media (max-width: 520px) {
   .button { padding: 8px 12px; gap: 8px; border-radius: 10px; }
