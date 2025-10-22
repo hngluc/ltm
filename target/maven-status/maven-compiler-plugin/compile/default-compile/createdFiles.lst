@@ -1,0 +1,8 @@
+com\example\DownloadManager\SharedBootstrap.class
+com\example\DownloadManager\CorsConfig.class
+com\example\DownloadManager\ResumeDownloadClient.class
+com\example\DownloadManager\FileController$LimitedInputStream.class
+com\example\DownloadManager\FileController.class
+com\example\DownloadManager\DownloadManagerApplication.class
+com\example\DownloadManager\ResumeDownloadClient$Json.class
+com\example\DownloadManager\ResumeDownloadClient$ResumeMeta.class
