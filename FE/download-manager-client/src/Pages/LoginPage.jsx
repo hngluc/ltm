@@ -3,62 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_BASE } from '../config';
 
-// CSS (Thêm vào App.css hoặc file css riêng)
-/*
-.login-container {
-  max-width: 400px;
-  margin: 5rem auto;
-  padding: 2rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-}
-.login-form h2 {
-  text-align: center;
-  margin-bottom: 1.5rem;
-}
-.form-group {
-  margin-bottom: 1rem;
-}
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-}
-.form-group input {
-  width: 100%;
-  padding: 0.75rem;
-  font-size: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box; 
-}
-.login-button {
-  width: 100%;
-  padding: 0.75rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #fff;
-  background-color: #007bff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-.login-button:hover {
-  background-color: #0056b3;
-}
-.login-button:disabled {
-  background-color: #aaa;
-  cursor: not-allowed;
-}
-.error-message {
-  color: #dc3545;
-  text-align: center;
-  margin-bottom: 1rem;
-}
-*/
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
