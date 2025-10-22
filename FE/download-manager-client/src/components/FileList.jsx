@@ -1,5 +1,5 @@
 // src/components/FileList.jsx
-import React, { useEffect, useState, useCallback } from "react"; // Thêm useCallback
+import React, { useEffect, useState, useCallback } from "react";
 import { API_BASE } from "../config";
 import { useDownloader } from "../hooks/useDownloader";
 import ProgressBar from "./ProgressBar";
@@ -10,10 +10,8 @@ export default function FileList() {
   const [loading, setLoading] = useState(true);
   const { progress, downloading, startDownload, pause, cancel } = useDownloader();
 
-  // ----- BƯỚC 1: Tách logic fetch ra hàm riêng -----
+  // Tách logic fetch ra hàm riêng
   const fetchFiles = useCallback(async () => {
-    // Không set loading = true nếu không phải lần đầu
-    // setLoading(true); 
     try {
       const res = await fetch(`${API_BASE || ""}/files`);
       const data = await res.json();
@@ -22,22 +20,21 @@ export default function FileList() {
       console.error("Fetch files failed:", e);
       setFiles([]);
     } finally {
-      setLoading(false); // Chỉ set false ở đây
+      setLoading(false); 
     }
-  }, []); // useCallback để hàm này không bị tạo lại mỗi lần render
+  }, []); 
 
-  // ----- BƯỚC 2: Gọi hàm fetchFiles ở lần đầu tiên -----
+  // Gọi hàm fetchFiles ở lần đầu tiên
   useEffect(() => {
-    setLoading(true); // Set loading cho lần đầu
+    setLoading(true); 
     fetchFiles();
   }, [fetchFiles]);
 
-  // ----- BƯỚC 3: Lắng nghe sự kiện SSE để tự động cập nhật list -----
+  // Lắng nghe sự kiện SSE để tự động cập nhật list
   useEffect(() => {
     console.log("Connecting to real-time file list updates...");
     const es = new EventSource(`${API_BASE || ""}/files/events/subscribe`);
 
-    // Khi máy chủ gửi sự kiện "list-changed"
     es.addEventListener("list-changed", (event) => {
       console.log("File list changed on server, refreshing...", event.data);
       // Gọi lại hàm fetchFiles để làm mới danh sách
@@ -46,17 +43,14 @@ export default function FileList() {
 
     es.onerror = () => {
       console.error("SSE connection error for file list.");
-      // EventSource sẽ tự động cố gắng kết nối lại
     };
 
-    // Dọn dẹp khi component unmount
     return () => {
       console.log("Closing real-time file list connection.");
       es.close();
     };
-  }, [fetchFiles]); // Phụ thuộc vào fetchFiles
+  }, [fetchFiles]); 
 
-  // ----- (Các hàm cũ) -----
   const formatBytes = (bytes) => {
     if (bytes === 0) return "0 B";
     if (!bytes && bytes !== 0) return "-";
@@ -73,9 +67,7 @@ export default function FileList() {
         const errData = await res.json();
         throw new Error(errData.message || "Lỗi khi xóa file.");
       }
-      // KHÔNG CẦN CẬP NHẬT UI THỦ CÔNG NỮA
-      // setFiles(files.filter((f) => f.name !== fileName));
-      // Server sẽ tự động broadcast "list-changed" và useEffect trên sẽ chạy
+      // Server sẽ tự động broadcast "list-changed" -> không cần cập nhật UI thủ công
     } catch (e) {
       console.error("Delete file failed:", e);
       alert(`Xóa file thất bại: ${e.message}`);
@@ -95,9 +87,7 @@ export default function FileList() {
         const errData = await res.json();
         throw new Error(errData.message || "Lỗi khi đổi tên file.");
       }
-      // KHÔNG CẦN CẬP NHẬT UI THỦ CÔNG NỮA
-      // setFiles(files.map(f => f.name === oldName ? { ...f, name: newName } : f));
-      // Server sẽ tự động broadcast "list-changed"
+      // Server sẽ tự động broadcast "list-changed" -> không cần cập nhật UI thủ công
     } catch (e) {
       console.error("Rename file failed:", e);
       alert(`Đổi tên file thất bại: ${e.message}`);
@@ -135,7 +125,7 @@ export default function FileList() {
                   <span className="progress-text">{pct}%</span>
                 </td>
                 
-                {/* === (KHUYẾN NGHỊ) CẬP NHẬT LOGIC NÚT RESUME === */}
+                {/* === ĐÂY LÀ PHẦN LOGIC KẾT HỢP RESUME === */}
                 <td className="cell-action">
                   {!isDownloading ? (
                     <>
