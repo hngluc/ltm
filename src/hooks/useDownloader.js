@@ -1,62 +1,186 @@
-// src/hooks/useDownloader.js
-import { useEffect, useRef, useState } from "react";
-import { API_BASE, MAX_RETRIES } from "../config";
-import {
-  openDb, getMeta, saveMeta, getParts, savePart, clearMeta, clearParts,
-} from "../utils/idb";
+// hooks/useDownloader.js
+import { useState, useRef, useCallback } from 'react';
+import { 
+  savePart, 
+  getParts, 
+  clearParts, 
+  saveMeta, 
+  getMeta, 
+  clearMeta, 
+  getDownloadedBytes 
+} from '../utils/idb';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const makeSessionId = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+const API_BASE = "http://localhost:8080";
+const MAX_RETRIES = 5;
 
-export function useDownloader() {
-  const [progress, setProgress] = useState({});     // % hiển thị (ưu tiên SSE)
-  const [downloading, setDownloading] = useState({});
-  const controllers = useRef({});                   // { fileName: { abort, controller } }
-  const sseRefs = useRef({});                       // { fileName: EventSource }
-  const stateMeta = useRef({});                     // { fileName: { downloaded, total } }
-
-  const setProgressValue = (file, pct) =>
-    setProgress((prev) => ({ ...prev, [file]: pct }));
-  const setDownloadingFlag = (file, bool) =>
-    setDownloading((prev) => ({ ...prev, [file]: bool }));
-
-  // ===== SSE =====
-  function subscribeSse(sessionId, fileName) {
-    const es = new EventSource(`${API_BASE || ""}/files/progress/subscribe?sessionId=${encodeURIComponent(sessionId)}`);
-    es.addEventListener("progress", (e) => {
-      try {
-        const data = JSON.parse(e.data); // {percent, sent, total}
-        setProgressValue(fileName, data.percent ?? 0);
-      } catch {}
-    });
-    es.addEventListener("done", () => {
-      es.close();
-      delete sseRefs.current[fileName];
-    });
-    es.onerror = () => {
-      es.close();
-      delete sseRefs.current[fileName];
-    };
-    sseRefs.current[fileName] = es;
+// Super Slow Download Simulator
+class SuperSlowDownloadSimulator {
+  constructor(totalSize, fileName) {
+    this.totalSize = totalSize;
+    this.fileName = fileName;
+    this.startTime = Date.now();
+    this.currentProgress = 0;
+    this.isComplete = false;
+    
+    this.setForcedSlowTiming();
+    
+    console.log(`🚀 Bắt đầu tải "${fileName}" - ${this.formatBytes(totalSize)} - Thời gian tối thiểu: ${this.totalDuration/1000}s`);
   }
 
-  function closeSse(fileName) {
-    const es = sseRefs.current[fileName];
-    if (es) {
-      try { es.close(); } catch {}
-      delete sseRefs.current[fileName];
+  setForcedSlowTiming() {
+    const randomTime = Math.random() * 20000 + 10000; // 10-30 giây
+    this.totalDuration = randomTime;
+    this.speed = this.totalSize / (this.totalDuration / 1000);
+  }
+
+  formatBytes(bytes) {
+    if (!bytes || bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  }
+
+  calculateProgress() {
+    if (this.isComplete) {
+      return {
+        percentage: 100,
+        downloaded: this.totalSize,
+        speed: 0,
+        timeRemaining: 0
+      };
     }
+
+    const now = Date.now();
+    const elapsed = now - this.startTime;
+    const progressRatio = Math.min(elapsed / this.totalDuration, 0.99);
+    
+    const percentage = progressRatio * 100;
+    const downloaded = Math.floor(this.totalSize * progressRatio);
+    const speed = this.totalSize / (this.totalDuration / 1000);
+    const remainingTime = Math.max(0, (this.totalDuration - elapsed) / 1000);
+
+    this.currentProgress = percentage;
+
+    return { percentage, downloaded, speed, timeRemaining: remainingTime };
   }
 
-  // ===== IndexedDB helpers =====
-  async function getDownloadedBytes(fileName) {
-    const parts = await getParts(fileName);
-    return parts.reduce((sum, p) => sum + (p.size || p.byteLength || 0), 0);
+  markComplete() {
+    this.isComplete = true;
+    this.currentProgress = 100;
   }
 
-  async function finalizeAndTrigger(fileName) {
+  getChunkDelay() {
+    return 300;
+  }
+}
+
+export const useDownloader = () => {
+  const [progress, setProgress] = useState({});
+  const [downloading, setDownloading] = useState({});
+  const [progressDetails, setProgressDetails] = useState({});
+  const controllers = useRef({});
+  const downloadSimulators = useRef({});
+  const animationFrames = useRef({});
+
+  const formatBytes = (bytes) => {
+    if (!bytes || bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  };
+
+  const startProgressAnimation = useCallback((fileName, totalSize) => {
+    const simulator = downloadSimulators.current[fileName];
+    if (!simulator) return;
+
+    const animate = () => {
+      if (!simulator || !controllers.current[fileName] || controllers.current[fileName].abort) {
+        return;
+      }
+
+      const progress = simulator.calculateProgress();
+      
+      setProgress((s) => ({ ...s, [fileName]: progress.percentage }));
+      setProgressDetails((s) => ({
+        ...s,
+        [fileName]: {
+          downloaded: progress.downloaded,
+          total: totalSize,
+          speed: progress.speed,
+          timeRemaining: progress.timeRemaining
+        }
+      }));
+
+      if (progress.percentage < 100 && !simulator.isComplete) {
+        animationFrames.current[fileName] = setTimeout(animate, 500);
+      } else if (progress.percentage >= 99.9) {
+        setTimeout(() => {
+          simulator.markComplete();
+          setProgress((s) => ({ ...s, [fileName]: 100 }));
+          finalizeDownload(fileName);
+        }, 1000);
+      }
+    };
+
+    animate();
+  }, []);
+
+  const downloadWithForcedSlowness = useCallback(async (fileName, totalSize, simulator) => {
+    const existingBytes = await getDownloadedBytes(fileName);
+    let downloaded = existingBytes;
+
+    const startByte = downloaded;
+    const headers = {};
+    if (startByte > 0) headers['Range'] = `bytes=${startByte}-`;
+
+    const controller = controllers.current[fileName].controller;
+    const response = await fetch(`${API_BASE}/files/${encodeURIComponent(fileName)}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body.getReader();
+    let chunkCount = 0;
+
+    try {
+      while (!controllers.current[fileName].abort) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunkCount++;
+        const chunkDelay = simulator.getChunkDelay();
+        await new Promise(resolve => setTimeout(resolve, chunkDelay));
+
+        const blob = new Blob([value], { type: "application/octet-stream" });
+        await savePart(fileName, blob);
+
+        downloaded += value.byteLength;
+
+        console.log(`🐌 Chunk ${chunkCount}: ${formatBytes(downloaded)}/${formatBytes(totalSize)}`);
+
+        if (downloaded >= totalSize) {
+          console.log(`✅ Đã tải xong file nhưng đợi progress bar...`);
+          break;
+        }
+      }
+    } finally {
+      try { reader.releaseLock(); } catch(e) {}
+    }
+  }, []);
+
+  const finalizeDownload = useCallback(async (fileName) => {
     const parts = await getParts(fileName);
     if (!parts || parts.length === 0) return;
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     const finalBlob = new Blob(parts, { type: "application/octet-stream" });
     const url = URL.createObjectURL(finalBlob);
     const a = document.createElement("a");
@@ -66,182 +190,97 @@ export function useDownloader() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+
     await clearParts(fileName);
     await clearMeta(fileName);
-    setProgressValue(fileName, 100);
-    closeSse(fileName);
-  }
 
-  // ===== Core: stream download (vẫn giữ để resume/offline) =====
-  async function downloadLoop(fileName, sessionId) {
-    const meta = (await getMeta(fileName)) || {};
-    let totalSize = meta.totalSize || null;
-    let downloaded = await getDownloadedBytes(fileName);
-
-    if (totalSize && downloaded >= totalSize) {
-      await finalizeAndTrigger(fileName);
-      return;
+    if (animationFrames.current[fileName]) {
+      clearTimeout(animationFrames.current[fileName]);
+      delete animationFrames.current[fileName];
     }
 
-    // HEAD-lite để lấy totalSize nếu chưa có
-    if (!totalSize) {
-      const headResp = await fetch(`${API_BASE || ""}/files/${encodeURIComponent(fileName)}?sessionId=${encodeURIComponent(sessionId)}`, {
-        method: "GET",
-        headers: { Range: "bytes=0-0" }
-      });
-      if (headResp.status === 206 || headResp.status === 200) {
-        const cr = headResp.headers.get("Content-Range");
-        const cl = headResp.headers.get("Content-Length");
-        if (cr && cr.includes("/")) totalSize = parseInt(cr.split("/")[1], 10);
-        else if (cl) totalSize = parseInt(cl, 10);
-        await saveMeta(fileName, { totalSize });
-      }
-      try { headResp?.body?.cancel(); } catch {}
-    }
+    setDownloading((s) => ({ ...s, [fileName]: false }));
+    delete downloadSimulators.current[fileName];
+    
+    alert(`✅ Tải thành công: ${fileName}`);
+  }, []);
 
-    // yêu cầu phần còn lại
-    const startByte = downloaded;
-    const headers = {};
-    if (startByte > 0) headers["Range"] = `bytes=${startByte}-`;
-
-    const ctl = controllers.current[fileName].controller;
-    const resp = await fetch(`${API_BASE || ""}/files/${encodeURIComponent(fileName)}?sessionId=${encodeURIComponent(sessionId)}`, {
-      method: "GET",
-      headers,
-      signal: ctl.signal
-    });
-
-    if (!(resp.status === 200 || resp.status === 206)) {
-      throw new Error("Unexpected status " + resp.status);
-    }
-
-    // cập nhật total từ header
-    const contentRange = resp.headers.get("Content-Range");
-    if (contentRange && contentRange.includes("/")) {
-      const total = parseInt(contentRange.split("/")[1], 10);
-      totalSize = total;
-      await saveMeta(fileName, { totalSize });
-      stateMeta.current[fileName].total = totalSize;
-    } else {
-      const cl = resp.headers.get("Content-Length");
-      if (cl && !totalSize) {
-        totalSize = parseInt(cl, 10) + startByte;
-        await saveMeta(fileName, { totalSize });
-        stateMeta.current[fileName].total = totalSize;
-      }
-    }
-
-    // stream
-    const reader = resp.body.getReader();
-    while (!controllers.current[fileName].abort) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const blob = new Blob([value.buffer ? value.buffer : value], { type: "application/octet-stream" });
-      await savePart(fileName, blob);
-
-      downloaded += value.byteLength || value.length || blob.size;
-      stateMeta.current[fileName].downloaded = downloaded;
-
-      // fallback (chỉ update nếu chưa có SSE)
-      if (!sseRefs.current[fileName]) {
-        if (totalSize) {
-          const pct = Math.min(100, Math.round((downloaded * 100) / totalSize));
-          setProgressValue(fileName, pct);
-        } else {
-          setProgressValue(fileName, Math.min(99, Math.round(downloaded / 1024 / 1024)));
-        }
-      }
-      await saveMeta(fileName, { totalSize });
-    }
-    try { reader.releaseLock && reader.releaseLock(); } catch {}
-
-    if (controllers.current[fileName].abort) return;
-
-    if (totalSize) {
-      const finalDownloaded = await getDownloadedBytes(fileName);
-      if (finalDownloaded >= totalSize) await finalizeAndTrigger(fileName);
-    } else {
-      await finalizeAndTrigger(fileName);
-    }
-  }
-
-  // ===== Public API =====
-  async function startDownload(fileName) {
+  const startDownload = useCallback(async (fileName, totalSize) => {
     if (downloading[fileName]) return;
+    
+    setDownloading((s) => ({ ...s, [fileName]: true }));
+    setProgress((s) => ({ ...s, [fileName]: 0 }));
 
-    setDownloadingFlag(fileName, true);
-    setProgressValue(fileName, 0);
-
-    const sessionId = makeSessionId();
-    subscribeSse(sessionId, fileName); // mở SSE trước khi tải
-
-    const meta = (await getMeta(fileName)) || {};
-    const existingBytes = await getDownloadedBytes(fileName);
-    stateMeta.current[fileName] = { downloaded: existingBytes, total: meta.totalSize || null };
-
+    downloadSimulators.current[fileName] = new SuperSlowDownloadSimulator(totalSize, fileName);
     controllers.current[fileName] = { abort: false, controller: new AbortController() };
+
+    startProgressAnimation(fileName, totalSize);
 
     let attempt = 0;
     while (attempt < MAX_RETRIES && !controllers.current[fileName].abort) {
       try {
-        await downloadLoop(fileName, sessionId);
-        break; // thành công
+        await downloadWithForcedSlowness(fileName, totalSize, downloadSimulators.current[fileName]);
+        break;
       } catch (err) {
         attempt++;
+        console.warn(`Download ${fileName} failed attempt ${attempt}`, err);
         if (attempt >= MAX_RETRIES) {
+          if (animationFrames.current[fileName]) {
+            clearTimeout(animationFrames.current[fileName]);
+          }
           alert(`Tải thất bại: ${fileName}`);
-          setDownloadingFlag(fileName, false);
-          closeSse(fileName);
+          setDownloading((s) => ({ ...s, [fileName]: false }));
           return;
         }
-        await sleep(1000 * attempt);
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
       }
     }
-    setDownloadingFlag(fileName, false);
-    // đóng SSE sẽ được gọi khi server gửi "done"; nhưng đảm bảo:
-    setTimeout(() => closeSse(fileName), 2000);
-  }
+  }, [downloading, downloadWithForcedSlowness, startProgressAnimation]);
 
-  function pause(fileName) {
-    const ctl = controllers.current[fileName];
-    if (!ctl) return;
-    ctl.abort = true;
-    try { ctl.controller.abort(); } catch {}
-    setDownloadingFlag(fileName, false);
-    // không clear parts/meta -> resume được
-  }
-
-  async function cancel(fileName) {
-    const ctl = controllers.current[fileName];
-    if (ctl) {
-      ctl.abort = true;
-      try { ctl.controller.abort(); } catch {}
+  const pauseDownload = useCallback((fileName) => {
+    if (!controllers.current[fileName]) return;
+    controllers.current[fileName].abort = true;
+    try {
+      controllers.current[fileName].controller.abort();
+    } catch (e) {}
+    
+    if (animationFrames.current[fileName]) {
+      clearTimeout(animationFrames.current[fileName]);
     }
-    await clearParts(fileName);
-    await clearMeta(fileName);
-    setProgressValue(fileName, 0);
-    setDownloadingFlag(fileName, false);
-    closeSse(fileName);
-  }
-
-  // (tuỳ chọn) auto-resume khi mount
-  useEffect(() => {
-    (async () => {
-      const db = await openDb();
-      const tx = db.transaction("file_parts", "readonly");
-      const store = tx.objectStore("file_parts");
-      const req = store.openCursor();
-      req.onsuccess = (ev) => {
-        const cursor = ev.target.result;
-        if (cursor) {
-          const file = cursor.key;
-          // không auto resume SSE (vì sessionId mới). Người dùng bấm Resume sẽ tạo session SSE mới.
-          cursor.continue();
-        }
-      };
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
+    setDownloading((s) => ({ ...s, [fileName]: false }));
   }, []);
 
-  return { progress, downloading, startDownload, pause, cancel };
-}
+  const cancelDownload = useCallback(async (fileName) => {
+    if (controllers.current[fileName]) {
+      controllers.current[fileName].abort = true;
+      try { 
+        controllers.current[fileName].controller.abort(); 
+      } catch(e) {}
+    }
+    
+    if (animationFrames.current[fileName]) {
+      clearTimeout(animationFrames.current[fileName]);
+      delete animationFrames.current[fileName];
+    }
+    
+    await clearParts(fileName);
+    await clearMeta(fileName);
+    
+    setProgress((s) => ({ ...s, [fileName]: 0 }));
+    setDownloading((s) => ({ ...s, [fileName]: false }));
+    setProgressDetails((s) => ({ ...s, [fileName]: null }));
+    
+    delete downloadSimulators.current[fileName];
+  }, []);
+
+  return {
+    progress,
+    downloading,
+    progressDetails,
+    startDownload,
+    pauseDownload,
+    cancelDownload,
+    formatBytes
+  };
+};

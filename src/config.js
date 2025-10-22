@@ -1,5 +1,7 @@
+// config.js
 export const API_BASE = "http://localhost:8080";
-export const DB_NAME = "download_db_v1";
-export const STORE_NAME = "file_parts";
-export const CHUNK_STORE_META = "file_meta";
 export const MAX_RETRIES = 5;
+export const CHUNK_DELAY = 300; // ms
+export const PROGRESS_UPDATE_INTERVAL = 500; // ms
+export const MIN_DOWNLOAD_TIME = 10000; // 10 seconds
+export const MAX_DOWNLOAD_TIME = 30000; // 30 seconds
