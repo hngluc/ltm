@@ -125,12 +125,28 @@ export default function FileList() {
                 <td className="cell-action">
                   {!isDownloading ? (
                     <>
-                      <button className="action-button download-button" onClick={() => startDownload(f.name)}>
-                        ⬇️ Download
-                      </button>
-                      <button className="action-button cancel-button" onClick={() => cancel(f.name)}>
-                        🗑️ Clear
-                      </button>
+                      {/* === LOGIC RESUME BẮT ĐẦU === */}
+                      {pct > 0 && pct < 100 ? (
+                        // 1. Đã có tiến trình -> Nút "Resume"
+                        <button className="action-button resume-button" onClick={() => startDownload(f.name)}>
+                          ▶️ Resume
+                        </button>
+                      ) : (
+                        // 2. Chưa có gì -> Nút "Download"
+                        <button className="action-button download-button" onClick={() => startDownload(f.name)}>
+                          ⬇️ Download
+                        </button>
+                      )}
+                      
+                      {/* Nút "Clear" chỉ hiển thị khi có tiến trình dở dang */}
+                      {pct > 0 && pct < 100 && (
+                        <button className="action-button cancel-button" onClick={() => cancel(f.name)}>
+                          🗑️ Clear
+                        </button>
+                      )}
+                      {/* === LOGIC RESUME KẾT THÚC === */}
+
+                      {/* Nút Rename và Delete giữ nguyên */}
                       <button className="action-button rename-button" onClick={() => handleRename(f.name)}>
                         ✏️ Rename
                       </button>
