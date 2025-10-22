@@ -1,0 +1,197 @@
+/* ===== Layout chung ===== */
+:root {
+  --bg: #0f172a;           /* slate-900 */
+  --panel: #111827;        /* gray-900 */
+  --panel-soft: #0b1220;   /* dark softer */
+  --text: #e5e7eb;         /* gray-200 */
+  --text-dim: #9ca3af;     /* gray-400 */
+  --primary: #4f46e5;      /* indigo-600 */
+  --primary-2: #6366f1;    /* indigo-500 */
+  --danger: #ef4444;       /* red-500 */
+  --success: #22c55e;      /* green-500 */
+  --border: #1f2937;       /* gray-800 */
+}
+
+html, body, #root {
+  height: 100%;
+  background: linear-gradient(180deg, var(--bg), #0b1021 40%, #0a0f1a);
+  color: var(--text);
+  font-family: "Inter", "Segoe UI", sans-serif;
+  margin: 0;
+}
+
+/* ===== Container chính ===== */
+.file-list-container {
+  max-width: 1100px;
+  margin: 40px auto;
+  padding: 24px;
+  background: radial-gradient(80% 60% at 50% 0%, rgba(79,70,229,0.10), transparent 70%),
+              linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+.file-list-container h2 {
+  margin: 0 0 18px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+
+/* ===== Header của danh sách ===== */
+.file-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+/* ===== Bảng ===== */
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+}
+
+.file-table thead th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+}
+
+.file-table tbody td {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.file-table tbody tr {
+  transition: background .2s ease, transform .06s ease;
+}
+.file-table tbody tr:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+/* Căn cột nhanh */
+.th-name, .cell-name { width: 40%; word-break: break-word; }
+.th-size, .cell-size { width: 14%; text-align: right; }
+.th-date, .cell-date { width: 22%; color: var(--text-dim); }
+.th-progress, .cell-progress { width: 16%; }
+.th-action, .cell-action { width: 8%; text-align: right; }
+
+/* ===== Progress bar ===== */
+.progress-bar-container {
+  position: relative;
+  width: 160px;
+  height: 10px;
+  border-radius: 999px;
+  background: #0a1528;
+  outline: 1px solid rgba(255,255,255,0.06);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.6);
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  box-shadow: 0 0 16px rgba(99,102,241,.45);
+  border-radius: 999px;
+  transition: width .2s ease;
+}
+
+/* ===== Nút hành động ===== */
+.action-button {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease;
+}
+.action-button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.download-button {
+  color: white;
+  background: linear-gradient(180deg, var(--primary), #4338ca);
+  box-shadow: 0 6px 16px rgba(79,70,229,.35);
+}
+.download-button:hover { transform: translateY(-1px); }
+
+.cancel-button {
+  color: white;
+  background: linear-gradient(180deg, #ef4444, #b91c1c);
+  box-shadow: 0 6px 16px rgba(239,68,68,.35);
+}
+.cancel-button:hover { transform: translateY(-1px); }
+
+.pause-button {
+  color: white;
+  background: linear-gradient(180deg, #f59e0b, #b45309);
+  box-shadow: 0 6px 16px rgba(245,158,11,.35);
+}
+.pause-button:hover { transform: translateY(-1px); }
+
+/* ===== Nút Upload ===== */
+.upload-button {
+  background: linear-gradient(180deg, var(--primary-2), var(--primary));
+  color: white;
+  padding: 10px 18px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 6px 16px rgba(99,102,241,.35);
+  cursor: pointer;
+  transition: transform .08s ease, box-shadow .2s ease, background .3s ease;
+}
+
+.upload-button:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #6366f1, #4f46e5);
+  box-shadow: 0 8px 20px rgba(99,102,241,.45);
+}
+
+/* ===== Trạng thái / message ===== */
+.file-list-status {
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.file-list-empty {
+  max-width: 700px;
+  margin: 60px auto;
+  text-align: center;
+}
+
+.file-list-empty p {
+  color: var(--text-dim);
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 860px) {
+  .th-date, .cell-date { display: none; }
+  .progress-bar-container { width: 120px; }
+}
+
+@media (max-width: 600px) {
+  .file-list-container { margin: 16px; padding: 16px; }
+  .th-size, .cell-size { display: none; }
+  .progress-bar-container { width: 100px; }
+  .action-button { padding: 8px 10px; }
+  .upload-button { padding: 8px 14px; }
+}
