@@ -342,7 +342,26 @@ html, body, #root {
   border-radius: 10px;
   background: rgba(255,255,255,.10);
 }
+/* CSS cho nút Resume (xanh lá) */
+.resume-button {
+  background-color: #28a745;
+  color: white;
+}
+.resume-button:hover {
+  background-color: #218838;
+}
 
+/* Sửa lại nút Clear (cancel-button) cho đồng bộ (xám) */
+/* (Nút "Cancel" lúc đang tải cũng sẽ dùng màu này) */
+.cancel-button {
+  background-color: #6c757d;
+  color: white;
+}
+.cancel-button:hover {
+  background-color: #5a6268;
+}
+
+/* (Các nút Rename/Delete nếu bạn chưa thêm) */
 .rename-button {
   background-color: #ffc107; /* Vàng */
   color: #212529;
