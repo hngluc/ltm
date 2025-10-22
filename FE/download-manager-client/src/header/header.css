@@ -1,55 +1,102 @@
+/* ----- Thanh Navbar ----- */
 .navbar {
-  background: linear-gradient(180deg, #111827, #0f172a);
-  border-bottom: 1px solid #1f2937;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  padding: 14px 28px;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-}
-
-.navbar-inner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 1100px;
-  margin: 0 auto;
+  justify-content: space-between; /* Đẩy logo và nav-links ra 2 bên */
+  align-items: center; /* Căn giữa các item theo chiều dọc */
+  padding: 1rem 2rem; /* Padding trên/dưới 1rem, trái/phải 2rem */
+  background-color: #ffffff; /* Nền trắng */
+  border-bottom: 1px solid #e0e0e0; /* Đường kẻ mỏng phân cách */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); /* Bóng đổ nhẹ */
 }
 
+/* ----- Logo ----- */
 .logo {
-  font-size: 22px;
-  font-weight: 700;
-  color: #e5e7eb;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  font-size: 1.6rem; /* Kích thước chữ lớn hơn */
+  font-weight: 700; /* In đậm */
+  color: #2c3e50; /* Màu tối */
+  margin: 0; /* Bỏ margin mặc định */
+  text-decoration: none; /* Bỏ gạch chân nếu là link */
 }
 
+/* ----- Nhóm link điều hướng ----- */
 .nav-links {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  display: flex; /* Xếp các nút theo hàng ngang */
+  gap: 1rem; /* Khoảng cách giữa các nút */
 }
 
-.nav-link {
-  color: #9ca3af;
-  font-weight: 600;
-  text-decoration: none;
-  padding: 8px 14px;
-  border-radius: 8px;
-  transition: background 0.2s ease, color 0.2s ease;
+/* ----- Kiểu chung cho các nút ----- */
+.button {
+  display: inline-flex; /* Để icon và chữ nằm cùng hàng */
+  align-items: center; /* Căn giữa icon và chữ theo chiều dọc */
+  gap: 0.5rem; /* Khoảng cách giữa icon và chữ */
+  padding: 0.6rem 1.2rem; /* Padding bên trong nút */
+  border: 1px solid transparent; /* Viền trong suốt ban đầu */
+  border-radius: 8px; /* Bo góc */
+  font-size: 0.95rem; /* Cỡ chữ */
+  font-weight: 600; /* Hơi đậm */
+  text-decoration: none; /* Bỏ gạch chân */
+  color: #34495e; /* Màu chữ mặc định */
+  background-color: #f4f7f6; /* Nền xám nhạt */
+  cursor: pointer; /* Biểu tượng con trỏ tay */
+  transition: all 0.2s ease-in-out; /* Hiệu ứng chuyển động mượt */
 }
 
-.nav-link:hover {
-  background: rgba(255, 255, 255, 0.08);
+/* ----- Icon bên trong nút ----- */
+.button .icon {
+  font-size: 1.1rem; /* Kích thước icon */
+}
+
+/* ----- Hiệu ứng khi rê chuột vào nút ----- */
+.button:hover {
+  background-color: #e9ecef; /* Nền đậm hơn chút */
+  border-color: #dadddf; /* Hiện viền nhạt */
+  transform: translateY(-2px); /* Nút nhích lên một chút */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); /* Thêm bóng đổ */
+}
+
+/* ----- Kiểu riêng cho từng nút ----- */
+/* Nút Upload */
+.upload-button {
+  color: #ffffff; /* Chữ trắng */
+  background-color: #007bff; /* Nền xanh dương */
+}
+.upload-button:hover {
+  background-color: #0069d9;
+  border-color: #0062cc;
+}
+
+/* Nút Đăng nhập */
+.login-button {
+  color: #ffffff; /* Chữ trắng */
+  background-color: #28a745; /* Nền xanh lá */
+}
+.login-button:hover {
+  background-color: #218838;
+  border-color: #1e7e34;
+}
+
+/* Nút Đăng xuất */
+.logout-button {
+  color: #ffffff; /* Chữ trắng */
+  background-color: #dc3545; /* Nền đỏ */
+  border: none; /* Bỏ viền vì là button thường */
+}
+.logout-button:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
+/* ----- Trạng thái Active cho NavLink ----- */
+.button.active {
+  color: #007bff; /* Màu chữ xanh */
+  background-color: #e6f2ff; /* Nền xanh nhạt */
+  border-color: #007bff; /* Viền xanh */
+  box-shadow: 0 0 5px rgba(0,123,255,0.2); /* Hiệu ứng bóng mờ */
+}
+
+/* Nút Upload khi active (nếu cần) */
+.upload-button.active {
   color: #fff;
-}
-
-.nav-link.upload {
-  background: linear-gradient(180deg, #6366f1, #4f46e5);
-  color: white;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
-}
-
-.nav-link.upload:hover {
-  background: linear-gradient(180deg, #6d70ff, #5148ff);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.45);
+  background-color: #0069d9;
+  border-color: #005cbf;
 }

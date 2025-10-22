@@ -1,43 +1,48 @@
-import React, { useContext } from "react";
+import React from "react"; // Bỏ useContext vì dùng useAuth()
 import { NavLink, useNavigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext"; // Import AuthContext
+import { useAuth } from "../context/AuthContext"; // <-- Import hook useAuth
 import "./header.css";
 
 export default function Header() {
-  // Lấy trạng thái auth và hàm logout từ Context
-  const { auth, logout } = useContext(AuthContext);
+  const { isLoggedIn, logout } = useAuth(); // <-- Lấy trạng thái và hàm logout
   const navigate = useNavigate();
+
+  // Thêm console log để kiểm tra
+  console.log("Header isLoggedIn:", isLoggedIn); 
 
   const handleLogout = () => {
     logout();
-    navigate("/login"); // Chuyển về trang login sau khi logout
+    navigate("/"); // Chuyển về trang chủ sau khi logout
   };
 
   return (
     <header className="navbar">
       <h1 className="logo">💾 Download Manager</h1>
       <nav className="nav-links">
-        {/* Các link cũ */}
         <NavLink to="/" end className="button list-button">
           <span className="icon">📁</span> Danh sách
         </NavLink>
-        <NavLink to="/upload" className="button upload-button">
-          <span className="icon">⬆️</span> Upload
-        </NavLink>
 
-        {/* THÊM LOGIC LOGIN/LOGOUT TẠI ĐÂY 
-        */}
-        {auth.token ? (
-          // Đã đăng nhập -> Hiển thị nút Logout
-          <button onClick={handleLogout} className="button logout-button">
-            <span className="icon">👋</span> Logout
-          </button>
+        {/* === LOGIC HIỂN THỊ === */}
+        {isLoggedIn ? (
+          <>
+            {/* Đã đăng nhập */}
+            <NavLink to="/upload" className="button upload-button">
+              <span className="icon">⬆️</span> Upload
+            </NavLink>
+            <button onClick={handleLogout} className="button logout-button">
+              <span className="icon">👋</span> Đăng xuất
+            </button>
+          </>
         ) : (
-          // Chưa đăng nhập -> Hiển thị nút Login
-          <NavLink to="/login" className="button login-button">
-            <span className="icon">🔑</span> Login
-          </NavLink>
+          <>
+            {/* Chưa đăng nhập (ẩn nút Upload) */}
+            <NavLink to="/login" className="button login-button">
+              <span className="icon">🔑</span> Đăng nhập
+            </NavLink>
+          </>
         )}
+        {/* === KẾT THÚC LOGIC === */}
       </nav>
     </header>
   );
