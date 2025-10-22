@@ -39,6 +39,12 @@ public class FileController {
         return progressService.createOrGet(sessionId);
     }
 
+    // ===== (THÊM MỚI) Realtime File List Updates (SSE) =====
+    @GetMapping(path="/events/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribeToFileListEvents() {
+        return progressService.createFileListEmitter();
+    }
+
     // ===== (Tùy chọn) Upload =====
     /** UPLOAD nhiều file (multipart/form-data) – không resume */
     @PostMapping("/upload")
@@ -61,6 +67,8 @@ public class FileController {
                         "size", Files.size(dest),
                         "status", "OK"
                 ));
+                progressService.broadcastListChange("UPLOAD", Map.of("name", safeName, "size",
+                        Files.size(dest)));
             } catch (IOException e) {
                 results.add(Map.of(
                         "name", safeName,
@@ -171,6 +179,8 @@ public class FileController {
             }
 
             Files.delete(file);
+            progressService.broadcastListChange("DELETE", Map.of("fileName", name));
+
             return ResponseEntity.ok(Map.of("message", "File deleted successfully.", "fileName", name));
 
         } catch (IOException e) {
@@ -211,6 +221,7 @@ public class FileController {
             }
 
             Files.move(oldFile, newFile);
+            progressService.broadcastListChange("RENAME", Map.of("oldName", name, "newName", newName));
             return ResponseEntity.ok(Map.of(
                     "message", "File renamed successfully.",
                     "oldName", name,

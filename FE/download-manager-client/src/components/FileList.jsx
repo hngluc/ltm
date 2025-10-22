@@ -1,5 +1,5 @@
 // src/components/FileList.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react"; // Thêm useCallback
 import { API_BASE } from "../config";
 import { useDownloader } from "../hooks/useDownloader";
 import ProgressBar from "./ProgressBar";
@@ -10,21 +10,53 @@ export default function FileList() {
   const [loading, setLoading] = useState(true);
   const { progress, downloading, startDownload, pause, cancel } = useDownloader();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE || ""}/files`);
-        const data = await res.json();
-        setFiles(data || []);
-      } catch (e) {
-        console.error("Fetch files failed:", e);
-        setFiles([]);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  // ----- BƯỚC 1: Tách logic fetch ra hàm riêng -----
+  const fetchFiles = useCallback(async () => {
+    // Không set loading = true nếu không phải lần đầu
+    // setLoading(true); 
+    try {
+      const res = await fetch(`${API_BASE || ""}/files`);
+      const data = await res.json();
+      setFiles(data || []);
+    } catch (e) {
+      console.error("Fetch files failed:", e);
+      setFiles([]);
+    } finally {
+      setLoading(false); // Chỉ set false ở đây
+    }
+  }, []); // useCallback để hàm này không bị tạo lại mỗi lần render
 
+  // ----- BƯỚC 2: Gọi hàm fetchFiles ở lần đầu tiên -----
+  useEffect(() => {
+    setLoading(true); // Set loading cho lần đầu
+    fetchFiles();
+  }, [fetchFiles]);
+
+  // ----- BƯỚC 3: Lắng nghe sự kiện SSE để tự động cập nhật list -----
+  useEffect(() => {
+    console.log("Connecting to real-time file list updates...");
+    const es = new EventSource(`${API_BASE || ""}/files/events/subscribe`);
+
+    // Khi máy chủ gửi sự kiện "list-changed"
+    es.addEventListener("list-changed", (event) => {
+      console.log("File list changed on server, refreshing...", event.data);
+      // Gọi lại hàm fetchFiles để làm mới danh sách
+      fetchFiles();
+    });
+
+    es.onerror = () => {
+      console.error("SSE connection error for file list.");
+      // EventSource sẽ tự động cố gắng kết nối lại
+    };
+
+    // Dọn dẹp khi component unmount
+    return () => {
+      console.log("Closing real-time file list connection.");
+      es.close();
+    };
+  }, [fetchFiles]); // Phụ thuộc vào fetchFiles
+
+  // ----- (Các hàm cũ) -----
   const formatBytes = (bytes) => {
     if (bytes === 0) return "0 B";
     if (!bytes && bytes !== 0) return "-";
@@ -34,25 +66,16 @@ export default function FileList() {
   };
 
   const handleDelete = async (fileName) => {
-    // Xác nhận trước khi xóa
-    if (!window.confirm(`Bạn có chắc muốn xóa file: ${fileName}?`)) {
-      return;
-    }
-
+    if (!window.confirm(`Bạn có chắc muốn xóa file: ${fileName}?`)) return;
     try {
-      const res = await fetch(`${API_BASE || ""}/files/${fileName}`, {
-        method: "DELETE",
-      });
-
+      const res = await fetch(`${API_BASE || ""}/files/${fileName}`, { method: "DELETE" });
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.message || "Lỗi khi xóa file.");
       }
-      
-      console.log(`File ${fileName} đã được xóa.`);
-      // Cập nhật lại danh sách file trên UI
-      setFiles(files.filter((f) => f.name !== fileName));
-
+      // KHÔNG CẦN CẬP NHẬT UI THỦ CÔNG NỮA
+      // setFiles(files.filter((f) => f.name !== fileName));
+      // Server sẽ tự động broadcast "list-changed" và useEffect trên sẽ chạy
     } catch (e) {
       console.error("Delete file failed:", e);
       alert(`Xóa file thất bại: ${e.message}`);
@@ -61,37 +84,26 @@ export default function FileList() {
 
   const handleRename = async (oldName) => {
     const newName = window.prompt("Nhập tên mới cho file:", oldName);
-
-    // Nếu người dùng hủy hoặc không nhập gì
-    if (!newName || newName === oldName) {
-      return;
-    }
-
+    if (!newName || newName === oldName) return;
     try {
       const res = await fetch(`${API_BASE || ""}/files/${oldName}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newName: newName }),
       });
-
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.message || "Lỗi khi đổi tên file.");
       }
-      
-      console.log(`Đã đổi tên ${oldName} -> ${newName}`);
-      // Cập nhật lại danh sách file trên UI
-      setFiles(files.map(f => 
-        f.name === oldName ? { ...f, name: newName } : f
-      ));
-
+      // KHÔNG CẦN CẬP NHẬT UI THỦ CÔNG NỮA
+      // setFiles(files.map(f => f.name === oldName ? { ...f, name: newName } : f));
+      // Server sẽ tự động broadcast "list-changed"
     } catch (e) {
       console.error("Rename file failed:", e);
       alert(`Đổi tên file thất bại: ${e.message}`);
     }
   };
+
 
   if (loading) return <p className="file-list-status">Đang tải danh sách file...</p>;
   if (files.length === 0) return <p className="file-list-status">Không có file nào trong thư mục shared.</p>;
@@ -122,31 +134,30 @@ export default function FileList() {
                   <ProgressBar value={pct} />
                   <span className="progress-text">{pct}%</span>
                 </td>
+                
+                {/* === (KHUYẾN NGHỊ) CẬP NHẬT LOGIC NÚT RESUME === */}
                 <td className="cell-action">
                   {!isDownloading ? (
                     <>
-                      {/* === LOGIC RESUME BẮT ĐẦU === */}
+                      {/* 1. Logic Resume/Download */}
                       {pct > 0 && pct < 100 ? (
-                        // 1. Đã có tiến trình -> Nút "Resume"
                         <button className="action-button resume-button" onClick={() => startDownload(f.name)}>
                           ▶️ Resume
                         </button>
                       ) : (
-                        // 2. Chưa có gì -> Nút "Download"
                         <button className="action-button download-button" onClick={() => startDownload(f.name)}>
                           ⬇️ Download
                         </button>
                       )}
                       
-                      {/* Nút "Clear" chỉ hiển thị khi có tiến trình dở dang */}
+                      {/* 2. Nút Clear chỉ hiện khi có tiến trình dở */}
                       {pct > 0 && pct < 100 && (
                         <button className="action-button cancel-button" onClick={() => cancel(f.name)}>
                           🗑️ Clear
                         </button>
                       )}
-                      {/* === LOGIC RESUME KẾT THÚC === */}
 
-                      {/* Nút Rename và Delete giữ nguyên */}
+                      {/* 3. Nút Rename/Delete */}
                       <button className="action-button rename-button" onClick={() => handleRename(f.name)}>
                         ✏️ Rename
                       </button>
