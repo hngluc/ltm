@@ -4,20 +4,15 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Header from "./header/header";
 import HomePage from "./Pages/HomePage";
 import UploadPage from "./Pages/UploadPage";
-import LoginPage from "./Pages/LoginPage"; // <-- 2. Đảm bảo import LoginPage
-import AdminRoute from "./routes/AdminRoute"; // <-- 3. Đảm bảo import AdminRoute
-// import FileList from "./Pages/HomePage"; // Dòng này có thể xóa nếu không dùng
+import LoginPage from "./Pages/LoginPage"; 
+import AdminRoute from "./routes/AdminRoute"; 
+
 
 export default function App() {
   const fileListRef = useRef(null); // Có vẻ ref này không còn cần thiết nếu dùng SSE?
 
-  // Hàm này có thể không cần nữa nếu UploadPage tự chuyển hướng
-  // const handleUploaded = useCallback(() => {
-  //   fileListRef.current?.refresh?.(); 
-  // }, []);
-
   return (
-    <Router> {/* 4. BrowserRouter bao ngoài cùng */}
+    <Router> 
       <div className="page">
         <Header />
 

@@ -6,6 +6,7 @@ import com.example.DownloadManager.Security.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException; // <-- Thêm import
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -13,7 +14,8 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*") // Cho phép frontend gọi
+// Bỏ @CrossOrigin ở đây nếu bạn đã cấu hình global CORS trong SecurityConfig hoặc CorsConfig
+// @CrossOrigin(origins = "http://localhost:3000")
 public class AuthController {
 
     @Autowired
@@ -25,19 +27,35 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
 
-        // Xác thực username/password
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginRequest.getUsername(),
-                        loginRequest.getPassword()
-                )
-        );
+        System.out.println("Attempting login for user: " + loginRequest.getUsername()); // <-- LOG 1
 
-        // Nếu OK -> set context và tạo token
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = tokenProvider.generateToken(authentication);
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getUsername(),
+                            loginRequest.getPassword()
+                    )
+            );
 
-        // Trả token về cho client
-        return ResponseEntity.ok(new LoginResponse(jwt));
+            System.out.println("Authentication successful for user: " + loginRequest.getUsername()); // <-- LOG 2
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String jwt = tokenProvider.generateToken(authentication);
+
+            System.out.println("Generated JWT for user: " + loginRequest.getUsername()); // <-- LOG 3
+
+            return ResponseEntity.ok(new LoginResponse(jwt));
+
+        } catch (BadCredentialsException e) {
+            // Đây là lỗi khi username/password không khớp
+            System.err.println("Login failed for user " + loginRequest.getUsername() + ": Bad credentials"); // <-- LOG LỖI 1
+            return ResponseEntity.status(401).body("Username or password incorrect"); // Trả về lỗi 401 Unauthorized
+        } catch (Exception e) {
+            // Bắt các lỗi xác thực khác (ví dụ: user bị khóa,...)
+            System.err.println("Authentication failed for user " + loginRequest.getUsername() + ": " + e.getMessage()); // <-- LOG LỖI 2
+            e.printStackTrace(); // In chi tiết lỗi ra console backend
+            return ResponseEntity.status(401).body("Authentication failed: " + e.getMessage());
+        }
     }
 }
+
