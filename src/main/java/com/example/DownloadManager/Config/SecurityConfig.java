@@ -48,28 +48,34 @@ public class SecurityConfig {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
-    // Bean SecurityFilterChain (Cập nhật cú pháp mới hơn)
+    // Bean SecurityFilterChain (Hoàn chỉnh)
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception { // Nhớ inject JwtAuthFilter ở đây
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
         http
-                // ... (csrf, cors, sessionManagement) ...
-                .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/auth/login").permitAll()       // API Đăng nhập
-                        .requestMatchers(HttpMethod.GET, "/files").permitAll() // API Lấy danh sách file (QUAN TRỌNG)
-                        .requestMatchers(HttpMethod.GET, "/files/{name}").permitAll() // API Tải file
-                        .requestMatchers("/files/progress/subscribe").permitAll() // SSE Progress (QUAN TRỌNG)
-                        .requestMatchers("/files/events/subscribe").permitAll() // SSE File List (QUAN TRỌNG)
+                // ***** THÊM LẠI 2 DÒNG NÀY *****
+                // 1. Tắt CSRF (quan trọng cho API stateless)
+                .csrf(AbstractHttpConfigurer::disable)
+                // 2. Áp dụng cấu hình CORS (dùng default hoặc bean CorsConfigurationSource của bạn)
+                .cors(Customizer.withDefaults())
+                // ******************************
 
-                        // --- Các đường dẫn yêu cầu ADMIN ---
+                // Không tạo session
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // Phân quyền request (Giữ nguyên phần này)
+                .authorizeHttpRequests(authz -> authz
+                        .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/files").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/files/{name}").permitAll()
+                        .requestMatchers("/files/progress/subscribe").permitAll()
+                        .requestMatchers("/files/events/subscribe").permitAll()
                         .requestMatchers(HttpMethod.POST, "/files/upload").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/files/{name}").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/files/{name}").hasRole("ADMIN")
-
-                        // --- Mọi request khác cần đăng nhập ---
                         .anyRequest().authenticated()
                 );
 
-        // Thêm bộ lọc JWT (Inject trực tiếp vào phương thức thay vì field)
+        // Thêm bộ lọc JWT (Giữ nguyên)
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
