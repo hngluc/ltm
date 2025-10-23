@@ -5,7 +5,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
-// Thêm import này
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -26,11 +25,6 @@ import org.springframework.security.config.Customizer;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    // --- XÓA DÒNG NÀY ---
-    // @Autowired
-    // private JwtAuthFilter jwtAuthFilter;
-    // Spring sẽ tự tìm thấy bean JwtAuthFilter khi cần dùng
-
     // Bean UserDetailsService (Giữ nguyên)
     @Bean
     public UserDetailsService userDetailsService() {
@@ -48,7 +42,6 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // --- SỬA LẠI BEAN NÀY ---
     // Bean AuthenticationManager (Cách lấy mới, không dùng HttpSecurity)
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
@@ -57,32 +50,22 @@ public class SecurityConfig {
 
     // Bean SecurityFilterChain (Cập nhật cú pháp mới hơn)
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception { // Inject JwtAuthFilter trực tiếp vào phương thức
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception { // Nhớ inject JwtAuthFilter ở đây
         http
-                // Tắt CSRF (cú pháp mới)
-                .csrf(AbstractHttpConfigurer::disable)
-
-                // Sử dụng CORS config (nếu bạn có CorsConfig bean thì nó sẽ tự dùng, nếu không thì dùng default)
-                .cors(Customizer.withDefaults())
-
-                // Không tạo session
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // Phân quyền request
+                // ... (csrf, cors, sessionManagement) ...
                 .authorizeHttpRequests(authz -> authz
-                        // --- Cho phép tất cả (Public) ---
-                        .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/files").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/files/{name}").permitAll()
-                        .requestMatchers("/files/progress/subscribe").permitAll()
-                        .requestMatchers("/files/events/subscribe").permitAll()
+                        .requestMatchers("/api/auth/login").permitAll()       // API Đăng nhập
+                        .requestMatchers(HttpMethod.GET, "/files").permitAll() // API Lấy danh sách file (QUAN TRỌNG)
+                        .requestMatchers(HttpMethod.GET, "/files/{name}").permitAll() // API Tải file
+                        .requestMatchers("/files/progress/subscribe").permitAll() // SSE Progress (QUAN TRỌNG)
+                        .requestMatchers("/files/events/subscribe").permitAll() // SSE File List (QUAN TRỌNG)
 
-                        // --- Yêu cầu quyền ADMIN ---
+                        // --- Các đường dẫn yêu cầu ADMIN ---
                         .requestMatchers(HttpMethod.POST, "/files/upload").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/files/{name}").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/files/{name}").hasRole("ADMIN")
 
-                        // Bất kỳ request nào khác đều cần xác thực
+                        // --- Mọi request khác cần đăng nhập ---
                         .anyRequest().authenticated()
                 );
 
