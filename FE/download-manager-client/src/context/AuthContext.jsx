@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     console.log("AuthContext: Attempting login via context for user:", username);
     let response;
     try {
-      response = await fetch(`${API_BASE || ""}/api/auth/login`, { // <-- Gọi API_BASE ở đây là đúng
+      response = await fetch(`${API_BASE || ""}/auth/login`, { // <-- Gọi API_BASE ở đây là đúng
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),

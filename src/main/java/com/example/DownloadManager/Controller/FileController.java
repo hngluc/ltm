@@ -17,7 +17,7 @@ import java.util.*;
 import java.util.stream.*;
 
 @RestController
-@RequestMapping("api/files")
+@RequestMapping("/api/files")
 @CrossOrigin(origins = "*") // chấp nhận FE localhost
 public class FileController {
 
@@ -45,8 +45,6 @@ public class FileController {
         return progressService.createFileListEmitter();
     }
 
-    // ===== (Tùy chọn) Upload =====
-    /** UPLOAD nhiều file (multipart/form-data) – không resume */
     @PostMapping("/upload")
     public ResponseEntity<Map<String, Object>> upload(@RequestPart("files") MultipartFile[] files) {
         if (files == null || files.length == 0) {
