@@ -1,75 +1,66 @@
-import { API_BASE } from './config';
+    import { API_BASE } from './config';
+    // Giả sử AuthContext export `logout` function trực tiếp hoặc qua useAuth
+    // Nếu bạn export context trực tiếp, bạn cần import useContext và AuthContext
+    // import { useContext } from 'react';
+    // import { AuthContext } from './context/AuthContext'; 
 
-// Hàm fetch "xịn" của chúng ta
-export const authFetch = async (url, options = {}) => {
-    const token = localStorage.getItem('authToken');
+    // Hàm helper để lấy token (giữ nguyên)
+    const getToken = () => localStorage.getItem('token');
 
-    // Chuẩn bị headers
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers, // Ghi đè header mặc định nếu cần
-    };
+    // Hàm fetch có kèm token (THÊM LOG)
+    export const authFetch = async (url, options = {}) => {
+      const token = getToken();
+      console.log("authFetch: Attempting fetch for URL:", url); // LOG 1
+      console.log("authFetch: Token from localStorage:", token); // LOG 2: Token có lấy được không?
 
-    // Nếu có token, thêm vào header Authorization
-    if (token) {
+      const headers = {
+        ...options.headers, // Giữ lại các header cũ (nếu có)
+      };
+
+      if (token) {
         headers['Authorization'] = `Bearer ${token}`;
-    }
+        console.log("authFetch: Added Authorization header."); // LOG 3: Header có được thêm không?
+      } else {
+        console.log("authFetch: No token found, proceeding without Authorization header."); // LOG 4
+      }
 
-    // Gắn headers mới vào options
-    const newOptions = {
-        ...options,
-        headers: headers,
-    };
+      try {
+        const response = await fetch(`${API_BASE || ""}${url}`, {
+          ...options, // Giữ lại method, body,... cũ
+          headers,   // Dùng header đã thêm token (hoặc không)
+        });
 
-    // Gọi fetch gốc
-    const response = await fetch(`${API_BASE || ""}${url}`, newOptions);
+        console.log(`authFetch: Response status for ${url}:`, response.status); // LOG 5: Status code trả về?
 
-    if (!response.ok) {
-        // Nếu lỗi 401 (Unauthorized) hoặc 403 (Forbidden) -> có thể token hết hạn
+        // Tự động logout nếu gặp lỗi 401 hoặc 403 (Token hết hạn/không hợp lệ)
         if (response.status === 401 || response.status === 403) {
-            console.error("Authentication error. Logging out.");
-            // Xóa token hỏng và reload trang
-            localStorage.removeItem('authToken');
-            window.location.reload(); 
+          console.error("authFetch: Received 401/403, logging out."); // LOG LỖI AUTH
+          localStorage.removeItem('token');
+          // Thông báo cho user hoặc redirect về trang login
+          // Cách đơn giản nhất là reload trang, AuthContext sẽ tự xử lý
+          window.location.reload(); 
+          throw new Error(`Unauthorized (Status: ${response.status})`); // Ném lỗi để dừng xử lý
         }
-        
-        // Ném lỗi để component .catch()
-        const errData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(errData.message || 'Something went wrong');
-    }
 
-    // Nếu request không trả về nội dung (ví dụ: DELETE 204 No Content)
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.indexOf("application/json") !== -1) {
-        return response.json(); // Trả về JSON
-    } else {
-        return response.text(); // Trả về text (hoặc blob, tùy nhu cầu)
-    }
-};
 
-// Một phiên bản riêng cho upload (vì nó dùng FormData, không dùng JSON)
-export const authUpload = async (url, formData) => {
-    const token = localStorage.getItem('authToken');
-    
-    const headers = {}; // Không set 'Content-Type', trình duyệt sẽ tự làm
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
+        return response; // Trả về response nguyên gốc để component tự xử lý .json() hoặc lỗi
 
-    const response = await fetch(`${API_BASE || ""}${url}`, {
+      } catch (error) {
+         console.error(`authFetch: Fetch error for ${url}:`, error); // LOG LỖI FETCH
+         throw error; // Ném lỗi ra để component gọi xử lý
+      }
+    };
+
+    // Hàm upload có kèm token (giữ nguyên logic, chỉ gọi authFetch)
+    export const authUpload = async (url, formData, options = {}) => {
+      // Không cần set Content-Type, trình duyệt tự xử lý cho FormData
+      // Chỉ cần gọi authFetch với method POST và body là formData
+       console.log("authUpload: Calling authFetch for URL:", url); // LOG Upload
+      return authFetch(url, {
         method: 'POST',
         body: formData,
-        headers: headers,
-    });
+        ...options, // Cho phép truyền thêm options nếu cần
+      });
+    };
     
-    if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-            localStorage.removeItem('authToken');
-            window.location.reload();
-        }
-        const errData = await response.json().catch(() => ({ message: response.statusText }));
-        throw new Error(errData.message || 'Upload failed');
-    }
 
-    return response.json();
-};

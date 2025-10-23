@@ -1,51 +1,55 @@
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext'; // Chỉ cần import useAuth
 import { useNavigate, useLocation } from 'react-router-dom';
-import { API_BASE } from '../config';
-
+import './Login.css'; // File CSS cho trang Login
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
-    const auth = useAuth();
+    const { login } = useAuth(); // Chỉ cần lấy hàm login từ context
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Lấy đường dẫn mà user muốn vào trước khi bị đá về login
-    const from = location.state?.from?.pathname || "/admin"; 
+    // State để theo dõi component còn mount không (tránh lỗi state update)
+    const [isMounted, setIsMounted] = useState(true);
+    useEffect(() => {
+        setIsMounted(true);
+        return () => setIsMounted(false); // Cleanup khi unmount
+    }, []);
 
+    // Đường dẫn muốn đến sau khi login thành công
+    const from = location.state?.from?.pathname || "/"; // Mặc định về trang chủ sau login
+
+    // Hàm xử lý submit form
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (loading) return; // Chặn double submit
+
         setLoading(true);
         setError(null);
-        
+        console.log("LoginPage: Calling context login for user:", username); 
+
         try {
-            // Gọi API Login (không cần authFetch vì đây là lúc lấy token)
-            const res = await fetch(`${API_BASE || ""}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password }),
-            });
+            // *** CHỈ GỌI HÀM LOGIN TỪ CONTEXT ***
+            const success = await login(username, password); 
+            // *** KHÔNG CÓ fetch Ở ĐÂY NỮA ***
 
-            if (!res.ok) {
-                throw new Error('Sai tên đăng nhập hoặc mật khẩu');
+            if (success && isMounted) {
+                 console.log("LoginPage: Context login successful. Navigating to:", from);
+                 navigate(from, { replace: true });
             }
-
-            const data = await res.json(); // { accessToken: "..." }
-            auth.login(data.accessToken);
-            
-            // Đăng nhập thành công, chuyển hướng về trang admin
-            navigate(from, { replace: true });
-
         } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
+            if (isMounted) {
+                console.error("LoginPage: Error received from context login:", err);
+                setError(err.message || "Đã xảy ra lỗi không mong muốn.");
+                setLoading(false); 
+            }
         }
     };
 
+    // Phần JSX render form (giữ nguyên)
     return (
         <div className="login-container">
             <form className="login-form" onSubmit={handleSubmit}>
@@ -59,6 +63,7 @@ export default function LoginPage() {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         required
+                        disabled={loading} 
                     />
                 </div>
                 <div className="form-group">
@@ -69,6 +74,7 @@ export default function LoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
+                        disabled={loading} 
                     />
                 </div>
                 <button type="submit" className="button login-button" disabled={loading}>
@@ -78,3 +84,4 @@ export default function LoginPage() {
         </div>
     );
 }
+
