@@ -378,6 +378,12 @@ html, body, #root {
   background-color: #c82333;
 }
 
+.content { padding: 24px; min-height: 60vh; }
+.panel { background: #111827; border: 1px solid #1f2937; padding: 16px; border-radius: 12px; }
+h2 { margin: 0 0 12px; }
+.form-grid { display: grid; gap: 12px; align-items: center; }
+.status { margin-top: 8px; opacity: 0.9; }
+
 /* Responsive tweak for header buttons */
 @media (max-width: 520px) {
   .button { padding: 8px 12px; gap: 8px; border-radius: 10px; }

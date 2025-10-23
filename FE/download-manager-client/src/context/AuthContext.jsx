@@ -1,5 +1,5 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { API_BASE } from '../config'; // Giả sử bạn có file config
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react'; // <-- Đã thêm useCallback vào import
+import { API_BASE } from '../config'; // <-- Đã thêm import API_BASE
 
 // 1. Tạo Context
 const AuthContext = createContext(null);
@@ -7,10 +7,12 @@ const AuthContext = createContext(null);
 // 2. Tạo Provider Component
 export const AuthProvider = ({ children }) => {
   // State: lưu token và trạng thái loading ban đầu
-  const [auth, setAuth] = useState({ token: null, loading: true }); 
+  // ** QUAN TRỌNG: setAuth được khai báo ở đây **
+  const [auth, setAuth] = useState({ token: null, loading: true });
 
   // --- Logic chính ---
 
+  // ** QUAN TRỌNG: useCallback và các hook khác phải nằm BÊN TRONG component **
   // Hàm kiểm tra token trong localStorage khi tải trang
   const checkInitialAuth = useCallback(() => {
     console.log("AuthContext: Checking initial auth status...");
@@ -18,36 +20,35 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       console.log("AuthContext: Token from localStorage on init:", token);
       if (token) {
-        // TODO: Lý tưởng nhất là thêm bước gọi API backend để xác thực token này còn hạn/hợp lệ không
-        // Ví dụ: GET /api/auth/validate -> trả về true/false
-        // Nếu validate ok thì setAuth, nếu không thì remove token & setAuth(null)
-        setAuth({ token: token, loading: false });
+        setAuth({ token: token, loading: false }); // <-- Gọi setAuth ở đây là đúng
       } else {
-        setAuth({ token: null, loading: false });
+        setAuth({ token: null, loading: false }); // <-- Gọi setAuth ở đây là đúng
       }
     } catch (error) {
       console.error("AuthContext: Error reading localStorage on init:", error);
-      setAuth({ token: null, loading: false }); // Đảm bảo hết loading dù lỗi
+      setAuth({ token: null, loading: false });
     }
-  }, []);
+  }, []); // useCallback dependencies rỗng
 
   // Chạy kiểm tra auth khi Provider mount lần đầu
   useEffect(() => {
     checkInitialAuth();
   }, [checkInitialAuth]); // Chỉ chạy 1 lần
 
-  // HÀM LOGIN (Quan trọng: Xử lý API call tại đây)
+  // HÀM LOGIN
   const login = useCallback(async (username, password) => {
     console.log("AuthContext: Attempting login via context for user:", username);
+    let response;
     try {
-      const response = await fetch(`${API_BASE || ""}/api/auth/login`, {
+      response = await fetch(`${API_BASE || ""}/api/auth/login`, { // <-- Gọi API_BASE ở đây là đúng
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
 
-      const responseText = await response.text(); // Đọc text trước
-      console.log(`AuthContext Login API Status: ${response.status}`);
+      console.log(`AuthContext Login RAW Response Status: ${response.status}`);
+      const responseText = await response.text();
+      console.log(`AuthContext Login RAW Response Text: ${responseText}`);
 
       if (!response.ok) {
           let errorMessage = 'Sai tên đăng nhập hoặc mật khẩu';
@@ -58,72 +59,64 @@ export const AuthProvider = ({ children }) => {
                 errorMessage = (response.status === 401 || response.status === 403) ? 'Sai tên đăng nhập hoặc mật khẩu' : (responseText || `Lỗi ${response.status}`);
            }
           console.error(`AuthContext Login API failed. Status: ${response.status}, Message: ${errorMessage}`);
-          throw new Error(errorMessage); // Ném lỗi ra cho LoginPage hiển thị
+          throw new Error(errorMessage);
       }
 
-      // --- Thành công ---
       let data;
       try {
           data = JSON.parse(responseText);
       } catch (parseError) {
-          console.error("AuthContext: Failed to parse successful login response JSON:", parseError);
+          console.error("AuthContext: Failed to parse successful login response JSON:", parseError, "Raw text:", responseText);
           throw new Error("Phản hồi đăng nhập không hợp lệ.");
       }
 
       if (data.accessToken) {
         console.log("AuthContext: Login API success. Saving token.");
-        // **LƯU Ý THỨ TỰ:** Lưu localStorage TRƯỚC khi set State
-        localStorage.setItem('token', data.accessToken); 
-        setAuth({ token: data.accessToken, loading: false }); // Cập nhật state
-        return true; // Báo thành công cho LoginPage
+        localStorage.setItem('token', data.accessToken);
+        setAuth({ token: data.accessToken, loading: false }); // <-- Gọi setAuth ở đây là đúng
+        return true;
       } else {
         console.error("AuthContext: Login response OK but no accessToken.");
         throw new Error("Không nhận được token truy cập.");
       }
     } catch (error) {
       console.error("AuthContext: Error during login API call:", error);
-      localStorage.removeItem('token'); // Dọn dẹp token cũ nếu login lỗi
-      setAuth({ token: null, loading: false }); // Reset state
-      throw error; // Ném lỗi ra cho LoginPage
+      localStorage.removeItem('token');
+      setAuth({ token: null, loading: false }); // <-- Gọi setAuth ở đây là đúng
+      throw error;
     }
   }, []); // useCallback dependencies rỗng
 
   // HÀM LOGOUT
   const logout = useCallback(() => {
     localStorage.removeItem('token');
-    setAuth({ token: null, loading: false }); // Reset state và loading
+    setAuth({ token: null, loading: false }); // <-- Gọi setAuth ở đây là đúng
     console.log("AuthContext: Logged out, token removed");
-    // Có thể thêm navigate('/') ở đây nếu muốn logout luôn về trang chủ
-    // import { useNavigate } from 'react-router-dom'; // cần import nếu dùng
-    // const navigate = useNavigate(); navigate('/');
   }, []);
 
   // --- Cung cấp giá trị cho Context ---
   const value = {
-    isLoggedIn: !!auth.token, // Chuyển thành boolean
+    isLoggedIn: !!auth.token,
     token: auth.token,
-    isLoading: auth.loading, // Trạng thái loading ban đầu
-    login,                   // Hàm login đã bao gồm gọi API
+    isLoading: auth.loading,
+    login,
     logout,
   };
 
-  // console.log("AuthContext: Rendering Provider...", value); // Log khi render (có thể hơi nhiều)
-
   // Không render children cho đến khi kiểm tra auth ban đầu xong
-  // (Quan trọng để tránh component con chạy với state sai)
   if (auth.loading) {
      return <div>Authenticating...</div>; // Hoặc spinner
   }
 
-  // Render Context Provider với giá trị đã tính toán
+  // Render Context Provider
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+}; // ** Kết thúc AuthProvider component **
 
-// 3. Tạo Custom Hook để sử dụng Context
+
+// 3. Tạo Custom Hook để sử dụng Context (Giữ nguyên)
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === null) {
-    // Lỗi này xảy ra nếu dùng useAuth bên ngoài AuthProvider
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;

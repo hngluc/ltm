@@ -1,17 +1,31 @@
-import React from 'react';
-import { useAuth } from '../context/AuthContext';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 
-export default function AdminRoute() {
-    const auth = useAuth();
-    const location = useLocation();
+function parseJwt(token) {
+  try { return JSON.parse(atob(token.split(".")[1])); } catch { return {}; }
+}
 
-    if (!auth.isLoggedIn) {
-        // Nếu chưa đăng nhập, chuyển về /login
-        // state: { from: location } để lưu lại trang user muốn vào
-        return <Navigate to="/login" replace state={{ from: location }} />;
-    }
+export default function AdminRoute({ children }) {
+  const location = useLocation();
+  const [ready, setReady] = useState(false);
+  const [allowed, setAllowed] = useState(false);
 
-    // Nếu đã đăng nhập, cho phép truy cập
-    return <Outlet />;
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) { setAllowed(false); setReady(true); return; }
+
+    const payload = parseJwt(token);
+    const roles = payload?.roles || payload?.authorities || payload?.scope || [];
+    const isAdmin = Array.isArray(roles)
+      ? roles.includes("ADMIN") || roles.includes("ROLE_ADMIN")
+      : String(roles).includes("ADMIN");
+
+    setAllowed(!!isAdmin);
+    setReady(true);
+  }, []);
+
+  if (!ready) return <div style={{padding:24}}>Đang kiểm tra quyền truy cập…</div>;
+  if (!allowed) return <Navigate to="/login" state={{ from: location }} replace />;
+
+  return children; // QUAN TRỌNG
 }
