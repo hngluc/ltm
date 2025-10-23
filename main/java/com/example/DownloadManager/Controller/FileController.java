@@ -17,7 +17,7 @@ import java.util.*;
 import java.util.stream.*;
 
 @RestController
-@RequestMapping("/files")
+@RequestMapping("api/files")
 @CrossOrigin(origins = "*") // chấp nhận FE localhost
 public class FileController {
 
