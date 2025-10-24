@@ -3,11 +3,13 @@ import { isAdminFromToken } from "../utils/auth";
 import { API_BASE } from "../config";
 import { useDownloader } from "../hooks/useDownloader";
 import ProgressBar from "../components/ProgressBar";
+//import { AuthContext } from '../context/AuthContext'
 import "../App.css";
 
 const HomePage = forwardRef((props, ref) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  
   const isAdmin = isAdminFromToken();
   const { progress, downloading, startDownload, pause, cancel } = useDownloader();
 
@@ -89,6 +91,34 @@ const HomePage = forwardRef((props, ref) => {
     }
   };
 
+  //-- Đổi tên file (ADMIN) ---  
+  const handleRename = async (oldName) => {
+  const newName = window.prompt("Nhập tên file mới:", oldName);
+  if (!newName || newName === oldName) return;
+
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_BASE || ""}/files/${encodeURIComponent(oldName)}/rename`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ newName }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    }
+
+    console.log(`Renamed "${oldName}" -> "${newName}"`);
+    fetchFiles(); // refresh danh sách
+  } catch (e) {
+    console.error("Rename error:", e);
+    alert(`❌ Đổi tên lỗi: ${e.message}`);
+  }
+};
   // --- Render ---
   if (loading)
     return <p className="file-list-status">Đang tải danh sách file...</p>;
@@ -170,16 +200,30 @@ const HomePage = forwardRef((props, ref) => {
                   )}
 
                   {/* 🗑️ Nút Delete cho ADMIN */}
-                  {isAdmin && (
-                    <button
-                      className="action-button cancel-button"
-                      style={{ marginLeft: 8 }}
-                      onClick={() => handleDelete(f.name)}
-                      title="Xoá file (ADMIN)"
-                    >
-                      🗑️ Delete
-                    </button>
-                  )}
+                  {/* 🗑️ / ✏️ Nút ADMIN */}
+{/* 🗑️ / ✏️ Nút ADMIN */}
+{isAdmin && (
+  <>
+    <button
+      className="action-button cancel-button"
+      style={{ marginLeft: 8 }}
+      onClick={() => handleDelete(f.name)}
+      title="Xoá file (ADMIN)"
+    >
+      🗑️ Delete
+    </button>
+
+    <button
+      className="action-button rename-button"
+      style={{ marginLeft: 8 }}
+      onClick={() => handleRename(f.name)}
+      title="Đổi tên file (ADMIN)"
+    >
+      ✏️ Rename
+    </button>
+  </>
+)}
+
                 </td>
               </tr>
             );
