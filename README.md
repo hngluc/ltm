@@ -31,4 +31,4 @@ Liệt kê file có sẵn: Client có thể yêu cầu server trả về danh s�
 
 Thông tin file: Server có thể gửi metadata như: tên file, kích thước, ngày tạo.
 
-http://localhost:8080/files
+http://localhost:8080/api/files
