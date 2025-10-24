@@ -1,5 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react'; // <-- Đã thêm useCallback vào import
 import { API_BASE } from '../config'; // <-- Đã thêm import API_BASE
+import { notifyAuthChanged } from '../utils/authBus';
+
 
 // 1. Tạo Context
 const AuthContext = createContext(null);
@@ -146,6 +148,7 @@ const login = useCallback(async (username, password) => {
   // HÀM LOGOUT
   const logout = useCallback(() => {
     localStorage.removeItem('token');
+    notifyAuthChanged();
     setAuth({ token: null, loading: false }); // <-- Gọi setAuth ở đây là đúng
     console.log("AuthContext: Logged out, token removed");
   }, []);
