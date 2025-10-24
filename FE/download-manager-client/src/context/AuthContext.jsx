@@ -10,10 +10,7 @@ export const AuthProvider = ({ children }) => {
   // ** QUAN TRỌNG: setAuth được khai báo ở đây **
   const [auth, setAuth] = useState({ token: null, loading: true });
 
-  // --- Logic chính ---
-
-  // ** QUAN TRỌNG: useCallback và các hook khác phải nằm BÊN TRONG component **
-  // Hàm kiểm tra token trong localStorage khi tải trang
+ 
   const checkInitialAuth = useCallback(() => {
     console.log("AuthContext: Checking initial auth status...");
     try {
@@ -35,57 +32,116 @@ export const AuthProvider = ({ children }) => {
     checkInitialAuth();
   }, [checkInitialAuth]); // Chỉ chạy 1 lần
 
-  // HÀM LOGIN
-  const login = useCallback(async (username, password) => {
-    console.log("AuthContext: Attempting login via context for user:", username);
-    let response;
+ // HÀM LOGIN (đã chỉnh)
+const login = useCallback(async (username, password) => {
+  console.log("AuthContext: Attempting login via context for user:", username);
+
+  // helper nhỏ để decode payload JWT (base64url)
+  const readAuthoritiesFromJwt = (token) => {
     try {
-      response = await fetch(`${API_BASE || ""}/auth/login`, { // <-- Gọi API_BASE ở đây là đúng
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
+      const part = token.split(".")[1];
+      if (!part) return [];
+      const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+      const pad = base64.length % 4;
+      const fixed = pad ? base64 + "=".repeat(4 - pad) : base64;
+      const json = atob(fixed);
+      const payload = JSON.parse(json);
 
-      console.log(`AuthContext Login RAW Response Status: ${response.status}`);
-      const responseText = await response.text();
-      console.log(`AuthContext Login RAW Response Text: ${responseText}`);
+      const raw = payload.authorities ?? payload.roles ?? payload.scope ?? payload.role ?? [];
+      const list = Array.isArray(raw)
+        ? raw
+        : typeof raw === "string"
+          ? raw.split(/\s+/)
+          : [];
 
-      if (!response.ok) {
-          let errorMessage = 'Sai tên đăng nhập hoặc mật khẩu';
-           try {
-               const errorJson = JSON.parse(responseText);
-               errorMessage = errorJson.message || errorMessage;
-           } catch (parseError) {
-                errorMessage = (response.status === 401 || response.status === 403) ? 'Sai tên đăng nhập hoặc mật khẩu' : (responseText || `Lỗi ${response.status}`);
-           }
-          console.error(`AuthContext Login API failed. Status: ${response.status}, Message: ${errorMessage}`);
-          throw new Error(errorMessage);
-      }
-
-      let data;
-      try {
-          data = JSON.parse(responseText);
-      } catch (parseError) {
-          console.error("AuthContext: Failed to parse successful login response JSON:", parseError, "Raw text:", responseText);
-          throw new Error("Phản hồi đăng nhập không hợp lệ.");
-      }
-
-      if (data.accessToken) {
-        console.log("AuthContext: Login API success. Saving token.");
-        localStorage.setItem('token', data.accessToken);
-        setAuth({ token: data.accessToken, loading: false }); // <-- Gọi setAuth ở đây là đúng
-        return true;
-      } else {
-        console.error("AuthContext: Login response OK but no accessToken.");
-        throw new Error("Không nhận được token truy cập.");
-      }
-    } catch (error) {
-      console.error("AuthContext: Error during login API call:", error);
-      localStorage.removeItem('token');
-      setAuth({ token: null, loading: false }); // <-- Gọi setAuth ở đây là đúng
-      throw error;
+      return list.map((x) => (typeof x === "string" ? x : x?.authority || "")).filter(Boolean);
+    } catch {
+      return [];
     }
-  }, []); // useCallback dependencies rỗng
+  };
+
+  try {
+    // Đăng nhập
+    const AUTH_BASE  = `${API_BASE}/auth`;
+    
+    const response = await fetch(`${AUTH_BASE}/login`,
+   {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+
+    const responseText = await response.text();
+    console.log(`AuthContext Login RAW Response Status: ${response.status}`);
+    console.log(`AuthContext Login RAW Response Text: ${responseText}`);
+
+    if (!response.ok) {
+      let errorMessage = "Sai tên đăng nhập hoặc mật khẩu";
+      try {
+        const errorJson = JSON.parse(responseText);
+        errorMessage = errorJson.message || errorMessage;
+      } catch {
+        errorMessage =
+          response.status === 401 || response.status === 403
+            ? "Sai tên đăng nhập hoặc mật khẩu"
+            : responseText || `Lỗi ${response.status}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      throw new Error("Phản hồi đăng nhập không hợp lệ.");
+    }
+
+    const token = data.accessToken;
+    if (!token) throw new Error("Không nhận được token truy cập.");
+
+    // Lưu token
+    console.log("AuthContext: Login API success. Saving token.");
+    localStorage.setItem("token", token);
+
+    // 1) Thử đọc authorities từ JWT
+    let authorities = readAuthoritiesFromJwt(token);
+
+    // 2) Nếu JWT không có, gọi /auth/me để lấy quyền và cache
+    if (!authorities.length) {
+      try {
+        const meRes = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (meRes.ok) {
+          const me = await meRes.json();
+          const list = Array.isArray(me.authorities)
+            ? me.authorities.map((x) => (typeof x === "string" ? x : x?.authority || ""))
+            : [];
+          authorities = list;
+        }
+      } catch (err) {
+        console.warn("AuthContext: Could not fetch /auth/me", err);
+      }
+    }
+
+    if (authorities.length) {
+      localStorage.setItem("authorities", JSON.stringify(authorities));
+    } else {
+      localStorage.removeItem("authorities");
+    }
+
+    // Cập nhật context
+    setAuth({ token, loading: false });
+    return true;
+  } catch (error) {
+    console.error("AuthContext: Error during login API call:", error);
+    localStorage.removeItem("token");
+    localStorage.removeItem("authorities");
+    setAuth({ token: null, loading: false });
+    throw error;
+  }
+}, []);
+
 
   // HÀM LOGOUT
   const logout = useCallback(() => {

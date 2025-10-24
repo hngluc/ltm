@@ -1,120 +1,207 @@
-import React, { useState, useEffect } from "react"; // Thêm useEffect
-import { useNavigate } from "react-router-dom";
-import { authUpload } from "../api"; 
-import "./upload.css"; 
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { listFiles, uploadFiles, renameFile, deleteFile } from "../services/filesApi";
+import "./upload.css"; // dùng CSS bạn gửi trước đó
 
-export default function UploadPage({ onUploaded }) { 
-  const [files, setFiles] = useState([]); 
-  const [uploading, setUploading] = useState(false); 
-  const [error, setError] = useState(null); 
-  const navigate = useNavigate();
+export default function AdminPage() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [picked, setPicked] = useState([]);
+  const inputRef = useRef(null);
+  const [renameTarget, setRenameTarget] = useState(null); // {old, draft}
+  const [msg, setMsg] = useState(null); // {type,text}
 
-  // State để theo dõi component còn mount không (tránh lỗi state update)
-  const [isMounted, setIsMounted] = useState(true);
-  useEffect(() => {
-      setIsMounted(true);
-      // Cleanup function chạy khi component unmount
-      return () => {
-          console.log("UploadPage unmounting...");
-          setIsMounted(false); 
-      }
-  }, []); // Chỉ chạy 1 lần khi mount
-
-  const handleFileChange = (e) => {
-    setFiles([...e.target.files]);
+  const fmt = (n) => {
+    if (n === 0) return "0 B";
+    if (!n || n < 0) return "-";
+    const k = 1024, u = ["B","KB","MB","GB","TB"];
+    const i = Math.min(Math.floor(Math.log(n)/Math.log(k)), u.length-1);
+    return `${parseFloat((n/Math.pow(k,i)).toFixed(2))} ${u[i]}`;
   };
 
-  const handleUpload = async () => {
-    if (files.length === 0) {
-      setError("Vui lòng chọn ít nhất 1 file.");
-      return;
-    }
-
-    setUploading(true);
-    setError(null);
-
-    const formData = new FormData();
-    files.forEach((file) => {
-      formData.append("files", file);
-    });
-
+  const refresh = async () => {
+    setLoading(true);
     try {
-      // 1. Gọi authUpload và nhận về đối tượng 'response'
-      const response = await authUpload("/files/upload", formData);
-      
-      // 2. *** KIỂM TRA QUAN TRỌNG ***
-      if (!response.ok) {
-        // Nếu response không OK (ví dụ: lỗi 400, 500)
-        let errorMessage = `Lỗi ${response.status}: ${response.statusText}`;
-        try {
-          // Thử đọc nội dung lỗi chi tiết từ server
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch (jsonError) {
-          // Bỏ qua nếu server không trả về JSON
-        }
-        // Ném lỗi để khối catch bên dưới bắt được
-        throw new Error(errorMessage);
-      }
-
-      // 3. Nếu response.ok, xử lý kết quả
-      const resultData = await response.json(); // Lấy dữ liệu JSON thành công
-      console.log("Upload result:", resultData);
-      
-      // Upload xong, quay về trang chủ
-      // navigate sẽ khiến component unmount
-      navigate("/");
-
-    } catch (err) {
-      // Bắt lỗi (từ authFetch ném ra 401/403, hoặc từ throw new Error ở trên)
-      console.error("Upload failed:", err);
-      
-      // *** SỬA LỖI: Chỉ cập nhật state nếu component còn mount ***
-      if (isMounted) {
-        setError(`Upload thất bại: ${err.message}`);
-      }
+      const data = await listFiles();
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+      setMsg({ type: "error", text: "Không tải được danh sách (kiểm tra token/CORS/URL)." });
+      setRows([]);
     } finally {
-      // *** SỬA LỖI: Chỉ cập nhật state nếu component còn mount ***
-      if (isMounted) {
-        setUploading(false);
-      }
+      setLoading(false);
     }
   };
 
-  // Render giao diện (đã sửa lỗi JSX)
+  useEffect(() => { refresh(); }, []);
+
+  const onPick = (e) => {
+    const files = Array.from(e.target.files || []);
+    setPicked(files);
+    setMsg(files.length ? { type: "info", text: `${files.length} file được chọn` } : null);
+  };
+
+  const clearPick = () => {
+    setPicked([]);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const doUpload = async () => {
+    if (!picked.length || busy) return;
+    setBusy(true);
+    setMsg({ type: "info", text: "Đang upload…" });
+    try {
+      await uploadFiles(picked);
+      setMsg({ type: "success", text: "✅ Upload thành công" });
+      clearPick();
+      await refresh();
+    } catch (e) {
+      console.error(e);
+      const t = String(e).includes("Failed to fetch")
+        ? "❌ Không kết nối được server (API_BASE/CORS/port)."
+        : `❌ Upload lỗi: ${e.message}`;
+      setMsg({ type: "error", text: t });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startRename = (old) => setRenameTarget({ old, draft: old });
+  const cancelRename = () => setRenameTarget(null);
+  const confirmRename = async () => {
+    if (!renameTarget) return;
+    const { old, draft } = renameTarget;
+    if (!draft || draft === old) { cancelRename(); return; }
+    setBusy(true);
+    try {
+      await renameFile(old, draft);
+      setMsg({ type: "success", text: `Đã đổi tên: ${old} → ${draft}` });
+      setRenameTarget(null);
+      await refresh();
+    } catch (e) {
+      setMsg({ type: "error", text: `Đổi tên lỗi: ${e.message}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDelete = async (name) => {
+    if (!window.confirm(`Xoá file "${name}"?`)) return;
+    setBusy(true);
+    try {
+      await deleteFile(name);
+      setMsg({ type: "success", text: `Đã xoá: ${name}` });
+      await refresh();
+    } catch (e) {
+      setMsg({ type: "error", text: `Xoá lỗi: ${e.message}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const table = useMemo(() => (
+    <div className="table-wrap">
+      <table className="file-table">
+        <thead>
+          <tr>
+            <th style={{width: "50%"}}>Tên file</th>
+            <th>Kích thước</th>
+            <th>Cập nhật</th>
+            <th style={{textAlign:"right"}}>Hành động</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(f => {
+            const isRenaming = renameTarget?.old === f.name;
+            return (
+              <tr key={f.name}>
+                <td className="filecell">
+                  <span className="fileicon">📄</span>
+                  {!isRenaming ? (
+                    <span className="filename" title={f.name}>{f.name}</span>
+                  ) : (
+                    <input
+                      autoFocus
+                      value={renameTarget.draft}
+                      onChange={e=>setRenameTarget(rt=>({...rt, draft: e.target.value}))}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") confirmRename();
+                        if (e.key === "Escape") cancelRename();
+                      }}
+                      className="btn"
+                      style={{ width: "100%" }}
+                    />
+                  )}
+                </td>
+                <td className="size">{fmt(f.size)}</td>
+                <td className="size">{f.lastModified ? new Date(f.lastModified).toLocaleString() : "-"}</td>
+                <td style={{ textAlign: "right" }}>
+                  {!isRenaming ? (
+                    <>
+                      <button className="btn tiny" onClick={() => startRename(f.name)} disabled={busy}>Đổi tên</button>
+                      <button className="btn tiny danger" onClick={() => doDelete(f.name)} disabled={busy}>Xoá</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="btn tiny" onClick={confirmRename} disabled={busy}>Lưu</button>
+                      <button className="btn tiny ghost" onClick={cancelRename} disabled={busy}>Huỷ</button>
+                    </>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && !loading && (
+            <tr><td colSpan={4} style={{padding:14, color:"#9ca3af"}}>Chưa có file nào.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  ), [rows, renameTarget, busy]);
+
   return (
-    // **SỬA LỖI: Tất cả phải nằm trong 1 div cha**
-    <div className="upload-container">
-    
-      {/* Bạn có 2 bộ input/button, tôi giả định bạn muốn dùng bộ thứ 2 
-        với class "upload-action-button" 
-      */}
+    <div className="upload-page">
+      <div className="header">
+        <div>
+          <h2>🛠 Admin – Quản lý file</h2>
+          <div className="muted">CRUD: xem, upload, đổi tên, xoá</div>
+        </div>
+        <div className="actions">
+          <button className="btn" onClick={refresh} disabled={busy || loading}>
+            {loading ? "Đang tải…" : "🔄 Làm mới"}
+          </button>
+        </div>
+      </div>
 
-      {/* Input chọn file */}
-      <input 
-        type="file" 
-        multiple 
-        onChange={handleFileChange} 
-        disabled={uploading} 
-        id="file-upload" // Thêm id để label hoạt động
-      />
-      {/* (Tùy chọn) Thêm label cho đẹp hơn */}
-      {/* <label htmlFor="file-upload" className="button">
-        {files.length === 0 ? "Chọn file" : `${files.length} file đã chọn`}
-      </label> */}
+      {/* Khu upload */}
+      <div className="dropzone">
+        <div className="dz-icon">⬆️</div>
+        <div className="dz-text">Chọn 1 hoặc nhiều file để upload (chỉ ADMIN)</div>
+        <input ref={inputRef} type="file" multiple onChange={onPick} disabled={busy} />
+        <div className="footer-actions">
+          <button className="btn primary" onClick={doUpload} disabled={!picked.length || busy}>
+            {busy ? "Đang gửi…" : `Upload ${picked.length || ""}`}
+          </button>
+          <button className="btn ghost" onClick={clearPick} disabled={!picked.length || busy}>Xoá chọn</button>
+        </div>
+      </div>
 
-      {/* Button Upload */}
-      <button 
-        className="button upload-action-button" 
-        onClick={handleUpload} 
-        disabled={uploading || files.length === 0} 
-      >
-        {uploading ? 'Đang Upload...' : 'Upload Files'}
-      </button>
+      {table}
 
-      {/* Thông báo lỗi */}
-      {error && <p className="error-message upload-error">{error}</p>}
-
+      {/* Thông báo */}
+      {msg && (
+        <p
+          className="status"
+          style={{
+            marginTop: 12,
+            color:
+              msg.type === "success" ? "#22c55e" :
+              msg.type === "error"   ? "#ef4444" : "#cbd5e1"
+          }}
+        >
+          {msg.text}
+        </p>
+      )}
     </div>
   );
 }
