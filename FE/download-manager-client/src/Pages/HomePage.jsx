@@ -1,4 +1,10 @@
-import React, { useEffect, useState, forwardRef, useImperativeHandle, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+  useCallback,
+} from "react";
 import { isAdminFromToken } from "../utils/auth";
 import { API_BASE } from "../config";
 import { useDownloader } from "../hooks/useDownloader";
@@ -9,9 +15,10 @@ import "../App.css";
 const HomePage = forwardRef((props, ref) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   const isAdmin = isAdminFromToken();
-  const { progress, downloading, startDownload, pause, cancel } = useDownloader();
+  const { progress, downloading, startDownload, pause, cancel } =
+    useDownloader();
 
   // --- Fetch danh sách file ---
   const fetchFiles = useCallback(async () => {
@@ -91,39 +98,88 @@ const HomePage = forwardRef((props, ref) => {
     }
   };
 
-  //-- Đổi tên file (ADMIN) ---  
-  const handleRename = async (oldName) => {
-  const newName = window.prompt("Nhập tên file mới:", oldName);
-  if (!newName || newName === oldName) return;
+  // -- Đổi tên file (ADMIN) — robust, thử nhiều chiến lược gọi API
+const handleRename = async (oldName) => {
+  let newName = window.prompt("Nhập tên file mới:", oldName);
+  if (!newName || newName.trim() === "" || newName === oldName) return;
+  newName = newName.trim();
 
-  try {
-    const token = localStorage.getItem("token");
-    const res = await fetch(`${API_BASE || ""}/files/${encodeURIComponent(oldName)}/rename`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ newName }),
-    });
+  const token = localStorage.getItem("token");
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const base = API_BASE || "";
+  const encOld = encodeURIComponent(oldName);
+  const encNew = encodeURIComponent(newName);
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text}`);
+  // Ghi log để debug nhanh
+  const explain = async (res) => {
+    const text = await res.text().catch(() => "");
+    console.warn(`[Rename] HTTP ${res.status} ${res.url} ->`, text);
+    return `HTTP ${res.status}: ${text || res.statusText}`;
+  };
+
+  // Thử lần lượt các biến thể phổ biến
+  const attempts = [
+    // 1) POST /files/{old}/rename  + JSON { newName }
+    async () =>
+      fetch(`${base}/files/${encOld}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ newName }),
+      }),
+
+    // 2) POST /files/rename?oldName=&newName=
+    async () =>
+      fetch(`${base}/files/rename?oldName=${encOld}&newName=${encNew}`, {
+        method: "POST",
+        headers: { ...authHeaders },
+      }),
+
+    // 3) PUT /files/{old}/rename + text/plain body=newName
+    async () =>
+      fetch(`${base}/files/${encOld}/rename`, {
+        method: "PUT",
+        headers: { "Content-Type": "text/plain", ...authHeaders },
+        body: newName,
+      }),
+
+    // 4) PATCH /files/{old} + JSON { newName }
+    async () =>
+      fetch(`${base}/files/${encOld}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ newName }),
+      }),
+  ];
+
+  const errors = [];
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      const res = await attempts[i]();
+      if (res.ok) {
+        console.log(`[Rename] Success with attempt #${i + 1}`);
+        await fetchFiles();
+        return;
+      } else {
+        errors.push(await explain(res));
+      }
+    } catch (err) {
+      console.error(`[Rename] Attempt #${i + 1} error:`, err);
+      errors.push(String(err));
     }
-
-    console.log(`Renamed "${oldName}" -> "${newName}"`);
-    fetchFiles(); // refresh danh sách
-  } catch (e) {
-    console.error("Rename error:", e);
-    alert(`❌ Đổi tên lỗi: ${e.message}`);
   }
+
+  alert(`❌ Đổi tên thất bại.\n\nThử 4 phương án đều lỗi:\n- ${errors.join("\n- ")}`);
 };
+
   // --- Render ---
   if (loading)
     return <p className="file-list-status">Đang tải danh sách file...</p>;
   if (!Array.isArray(files) || files.length === 0)
-    return <p className="file-list-status">Không có file nào trong thư mục shared.</p>;
+    return (
+      <p className="file-list-status">
+        Không có file nào trong thư mục shared.
+      </p>
+    );
 
   return (
     <div className="file-list-container">
@@ -149,7 +205,9 @@ const HomePage = forwardRef((props, ref) => {
                 <td className="cell-name">{f.name}</td>
                 <td className="cell-size">{formatBytes(f.size)}</td>
                 <td className="cell-date">
-                  {f.lastModified ? new Date(f.lastModified).toLocaleString() : "-"}
+                  {f.lastModified
+                    ? new Date(f.lastModified).toLocaleString()
+                    : "-"}
                 </td>
                 <td className="cell-progress">
                   <ProgressBar value={pct} />
@@ -201,29 +259,28 @@ const HomePage = forwardRef((props, ref) => {
 
                   {/* 🗑️ Nút Delete cho ADMIN */}
                   {/* 🗑️ / ✏️ Nút ADMIN */}
-{/* 🗑️ / ✏️ Nút ADMIN */}
-{isAdmin && (
-  <>
-    <button
-      className="action-button cancel-button"
-      style={{ marginLeft: 8 }}
-      onClick={() => handleDelete(f.name)}
-      title="Xoá file (ADMIN)"
-    >
-      🗑️ Delete
-    </button>
+                  {/* 🗑️ / ✏️ Nút ADMIN */}
+                  {isAdmin && (
+                    <>
+                      <button
+                        className="action-button cancel-button"
+                        style={{ marginLeft: 8 }}
+                        onClick={() => handleDelete(f.name)}
+                        title="Xoá file (ADMIN)"
+                      >
+                        🗑️ Delete
+                      </button>
 
-    <button
-      className="action-button rename-button"
-      style={{ marginLeft: 8 }}
-      onClick={() => handleRename(f.name)}
-      title="Đổi tên file (ADMIN)"
-    >
-      ✏️ Rename
-    </button>
-  </>
-)}
-
+                      <button
+                        className="action-button rename-button"
+                        style={{ marginLeft: 8 }}
+                        onClick={() => handleRename(f.name)}
+                        title="Đổi tên file (ADMIN)"
+                      >
+                        ✏️ Rename
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             );
