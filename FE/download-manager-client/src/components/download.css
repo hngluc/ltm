@@ -1,0 +1,53 @@
+/* Progress Bar */
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: #f1f3f4;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  background-color: #1a73e8;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+/* Hiệu ứng khi đang tải */
+.progress-bar .fill.active {
+  background: linear-gradient(90deg, #1a73e8, #4285f4);
+}
+
+.progress-bar .fill.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Trạng thái hoàn thành */
+.progress-bar .fill.completed {
+  background-color: #34a853;
+}
+
+/* Trạng thái lỗi */
+.progress-bar .fill.error {
+  background-color: #ea4335;
+}
+
+/* Trạng thái tạm dừng */
+.progress-bar .fill.paused {
+  background-color: #fbbc04;
+}
